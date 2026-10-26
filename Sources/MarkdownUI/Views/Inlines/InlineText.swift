@@ -8,6 +8,7 @@ struct InlineText: View {
   @Environment(\.theme) private var theme
   @Environment(\.multilineTextAlignment) private var alignment
   @Environment(\.lineSpacing) private var lineSpacing
+  @Environment(\.inlineImageFlow) private var inlineImageFlow
 
   @State private var inlineImages: [String: Image] = [:]
 
@@ -18,6 +19,16 @@ struct InlineText: View {
   }
 
   var body: some View {
+    if self.inlineImageFlow, #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
+      let flow = ImageFlow(self.inlines)
+    {
+      flow
+    } else {
+      self.textBody
+    }
+  }
+
+  private var textBody: some View {
     TextStyleAttributesReader { attributes in
       let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
       VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {

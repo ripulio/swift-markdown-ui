@@ -31,6 +31,7 @@ private struct FixtureView: View {
                     .textSelection(.enabled)
                     .markdownImageProvider(FixtureImageProvider())
                     .markdownInlineImageProvider(FixtureInlineImageProvider())
+                    .markdownInlineImageFlow()
                     .environment(\.openURL, OpenURLAction { url in
                         openedLink = "Opened " + (url.host ?? url.absoluteString)
                         return .handled

@@ -60,3 +60,9 @@ paragraph, seven-level lists, image bounds/link activation/nested alt labels,
 and Dynamic Type scaling compared with native body text. No screenshots were
 used. These are scoped regression results, not a claim that every upstream
 performance report is reproduced or that VoiceOver speech was manually approved.
+
+2.4.2-ripul.5 adds opt-in `markdownInlineImageFlow()` to extend fitting, linked
+image views to headings and table cells, including images nested in styles.
+The default retains the inline image provider for those contexts. A sixth iOS
+UI check verifies heading alt labels, actual table image bounds and link taps.
+All 68 applicable package tests still pass.

@@ -57,6 +57,17 @@ final class MarkdownRegressionUITests: XCTestCase {
                        reference.frame.height / referenceHeight, accuracy: 0.25)
     }
 
+    func testStyledImagesInHeadingsAndTableCellsFitAndKeepLinks() {
+        let app = launch("cellImages")
+        XCTAssertTrue(app.images["heading icon"].waitForExistence(timeout: 5))
+        let picture = app.buttons["cell picture"]
+        XCTAssertTrue(picture.exists)
+        XCTAssertLessThanOrEqual(picture.frame.width, 321)
+        XCTAssertGreaterThan(picture.frame.height, 50)
+        picture.tap()
+        XCTAssertTrue(app.staticTexts["Opened example.com"].waitForExistence(timeout: 3))
+    }
+
     private func launch(_ fixture: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--fixture", fixture]

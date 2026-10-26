@@ -1,7 +1,7 @@
 import Foundation
 
 enum MarkdownFixture: String, CaseIterable, Identifiable {
-    case spacing, formatting, longText, nestedLists, images, tables, dynamicType
+    case spacing, formatting, longText, nestedLists, images, tables, dynamicType, cellImages
     var id: String { rawValue }
 
     var source: String {
@@ -19,6 +19,14 @@ enum MarkdownFixture: String, CaseIterable, Identifiable {
             return "Normal **bold** *italic* ~~deleted~~ `code` [linked](https://example.com)."
         case .dynamicType:
             return "Text size"
+        case .cellImages:
+            return """
+            # Title **![heading icon](fixture://small)**
+
+            | Picture |
+            | --- |
+            | **[![cell picture](fixture://large)](https://example.com)** |
+            """
         case .longText:
             return (1...1_200).map { "Line \($0): **bold** and [link](https://example.com)." }.joined(separator: "\n")
         case .nestedLists:
