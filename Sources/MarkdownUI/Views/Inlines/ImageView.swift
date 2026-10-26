@@ -22,6 +22,8 @@ struct ImageView: View {
 
   private var label: some View {
     self.imageProvider.makeImage(url: self.url)
+      .accessibilityElement(children: .ignore)
+      .accessibilityAddTraits(.isImage)
       .link(destination: self.data.destination)
       .accessibilityLabel(self.data.alt)
   }

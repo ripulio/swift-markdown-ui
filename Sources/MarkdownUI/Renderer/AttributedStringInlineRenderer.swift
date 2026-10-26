@@ -91,6 +91,7 @@ private struct AttributedStringInlineRenderer {
   }
 
   private mutating func renderCode(_ code: String) {
+    self.shouldSkipNextWhitespace = false
     self.result += .init(code, attributes: self.textStyles.code.mergingAttributes(self.attributes))
   }
 

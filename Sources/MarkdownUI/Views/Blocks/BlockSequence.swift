@@ -61,7 +61,7 @@ extension BlockSequence where Data == [BlockNode], Content == BlockNode {
 }
 
 extension TextAlignment {
-  fileprivate var alignment: Alignment {
+  var alignment: Alignment {
     switch self {
     case .leading:
       return .leading

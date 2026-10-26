@@ -1,0 +1,41 @@
+name: MarkdownRegressionLab
+options:
+  deploymentTarget:
+    iOS: '17.0'
+packages:
+  MarkdownUI:
+    path: ../..
+settings:
+  base:
+    SWIFT_VERSION: '5.9'
+    GENERATE_INFOPLIST_FILE: YES
+    CODE_SIGNING_ALLOWED: NO
+targets:
+  MarkdownRegressionLab:
+    type: application
+    platform: iOS
+    sources: [App.swift, Fixtures.swift]
+    dependencies:
+      - package: MarkdownUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.ripul.tests.markdown-regression
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+  MarkdownRegressionUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [RegressionUITests.swift]
+    dependencies:
+      - target: MarkdownRegressionLab
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.ripul.tests.markdown-regression-ui
+schemes:
+  MarkdownRegressionLab:
+    build:
+      targets:
+        MarkdownRegressionLab: all
+        MarkdownRegressionUITests: [test]
+    test:
+      targets: [MarkdownRegressionUITests]

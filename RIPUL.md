@@ -28,10 +28,35 @@ Consumers should pin a release tag or commit, rather than the moving branch.
 For upstream updates, rebase this branch and run `swift test`. On macOS 27 with
 Xcode 27.1, the unchanged upstream `FontPropertiesTests` fails eight opaque SwiftUI
 `Font` equality assertions (reproduced on the unmodified 2.4.1 tag).
-`swift test --skip FontPropertiesTests` runs the remaining 58 tests, including the
+`swift test --skip FontPropertiesTests` runs the remaining 68 tests, including the
 new regression tests. The macOS hosted
 view tests check actual view reuse while the Markdown changes; parser fixtures
 cover longer fences, nested code and document-wide reference links. Hosted table
 checks cover actual wrapping, column widths, text alignment, full row bounds,
 horizontal overflow, empty cells, header-only tables and right-to-left order. No snapshots
 are required for these checks.
+
+The feedback regression pass (2.4.2-ripul.4):
+
+- Clear the line-start whitespace state after styled inlines, fixing upstream
+  [#402](https://github.com/gonzalezreal/swift-markdown-ui/issues/402).
+- Accumulate attributed text between images and balance image/text concatenation,
+  avoiding a deeply nested `Text + Text` tree for newline-heavy paragraphs
+  ([#312](https://github.com/gonzalezreal/swift-markdown-ui/issues/312), also
+  discussed in upstream PRs 438 and 444). Very long paragraphs are split at
+  authored rendered line breaks into bounded native Text views; this also fixes
+  the measured accessibility snapshot bottleneck with 1,200 links.
+- Flow images together with surrounding styled text, including linked and nested
+  images. Images use the image provider's fitting layout, retain their links and
+  expose alt text as accessibility images (#420/#439). The image theme/provider
+  now applies to mixed image paragraphs as well as image-only paragraphs.
+- Provide `MarkdownContent.renderAttributedString` for continuous native text
+  selection, keeping inline presentation intents, links, line breaks and lists;
+  tables copy as tab-separated cells. Consumers choose native fonts and colours.
+
+`Examples/RegressionLab` is an independently runnable iOS app. Five UI checks
+passed on iOS 27.1: exact whitespace, interaction after a 1,200-line linked
+paragraph, seven-level lists, image bounds/link activation/nested alt labels,
+and Dynamic Type scaling compared with native body text. No screenshots were
+used. These are scoped regression results, not a claim that every upstream
+performance report is reproduced or that VoiceOver speech was manually approved.

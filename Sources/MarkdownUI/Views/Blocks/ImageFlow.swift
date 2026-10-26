@@ -4,6 +4,7 @@ import SwiftUI
 struct ImageFlow: View {
   private enum Item: Hashable {
     case image(RawImageData)
+    case text([InlineNode])
     case lineBreak
   }
 
@@ -18,6 +19,8 @@ struct ImageFlow: View {
           switch item.value {
           case .image(let data):
             ImageView(data: data)
+          case .text(let inlines):
+            InlineText(inlines)
           case .lineBreak:
             Spacer()
           }
@@ -30,29 +33,15 @@ struct ImageFlow: View {
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 extension ImageFlow {
   init?(_ inlines: [InlineNode]) {
-    var items: [Item] = []
-
-    for inline in inlines {
-      switch inline {
-      case let .text(text) where text.isEmpty:
-        continue
-      case .softBreak:
-        continue
-      case .lineBreak:
-        items.append(.lineBreak)
-      case let .image(source, children):
-        items.append(.image(.init(source: source, alt: children.renderPlainText())))
-      case let .link(destination, children) where children.count == 1:
-        guard var data = children.first?.imageData else {
-          return nil
-        }
-        data.destination = destination
-        items.append(.image(data))
-      default:
-        return nil
+    let fragments = inlines.imageFragments()
+    guard fragments.contains(where: { if case .image = $0 { return true }; return false }) else { return nil }
+    self.items = fragments.map { fragment in
+      switch fragment {
+      case .image(let data): return Item.image(data)
+      case .text(let inlines):
+        if inlines == [.lineBreak] { return Item.lineBreak }
+        return Item.text(inlines)
       }
-    }
-
-    self.items = items.indexed()
+    }.indexed()
   }
 }
