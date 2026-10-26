@@ -7,11 +7,13 @@ struct TableCell: View {
   private let row: Int
   private let column: Int
   private let cell: RawTableCell
+  private let alignment: TextAlignment
 
-  init(row: Int, column: Int, cell: RawTableCell) {
+  init(row: Int, column: Int, cell: RawTableCell, alignment: TextAlignment) {
     self.row = row
     self.column = column
     self.cell = cell
+    self.alignment = alignment
   }
 
   var body: some View {
@@ -19,6 +21,7 @@ struct TableCell: View {
       configuration: .init(
         row: self.row,
         column: self.column,
+        alignment: self.alignment,
         label: .init(self.label),
         content: .init(block: .paragraph(content: cell.content))
       )

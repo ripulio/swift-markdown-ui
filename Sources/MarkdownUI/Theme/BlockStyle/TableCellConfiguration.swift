@@ -20,6 +20,9 @@ public struct TableCellConfiguration {
   /// The table cell column index.
   public let column: Int
 
+  /// The alignment declared by this column's Markdown delimiter.
+  public let alignment: TextAlignment
+
   /// The table cell view.
   public let label: Label
 
