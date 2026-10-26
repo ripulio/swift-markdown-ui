@@ -219,6 +219,7 @@ public struct Markdown: View {
     .textStyle(self.text)
     .environment(\.baseURL, self.baseURL)
     .environment(\.imageBaseURL, self.imageBaseURL)
+    .environment(\.markdownBlockPath, [])
   }
 
   private var blocks: [BlockNode] {

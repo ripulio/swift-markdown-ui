@@ -1,3 +1,5 @@
+> **Ripul fork:** based on MarkdownUI 2.4.1, with stable streaming block identity and nested code-block positions. See [RIPUL.md](RIPUL.md) for the patch set and maintenance notes. Upstream documentation follows.
+
 # MarkdownUI
 [![CI](https://github.com/gonzalezreal/MarkdownUI/workflows/CI/badge.svg)](https://github.com/gonzalezreal/MarkdownUI/actions?query=workflow%3ACI)
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fgonzalezreal%2Fswift-markdown-ui%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/gonzalezreal/swift-markdown-ui)

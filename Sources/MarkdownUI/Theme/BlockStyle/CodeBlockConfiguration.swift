@@ -20,6 +20,14 @@ public struct CodeBlockConfiguration {
   /// The code block contents.
   public let content: String
 
+  /// The block's zero-based position through the document's nested containers.
+  ///
+  /// Use this to scope controls such as wrapping or expansion independently for
+  /// each code block. It remains stable when text is appended while streaming.
+  /// Positions are document-local and can change when blocks are inserted before
+  /// this one; scope persisted state to the enclosing message or document.
+  public let blockPath: [Int]
+
   /// The code block view.
   public let label: Label
 }

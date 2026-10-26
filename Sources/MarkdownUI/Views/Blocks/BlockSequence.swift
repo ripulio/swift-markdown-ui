@@ -8,6 +8,7 @@ where
 {
   @Environment(\.multilineTextAlignment) private var textAlignment
   @Environment(\.tightSpacingEnabled) private var tightSpacingEnabled
+  @Environment(\.markdownBlockPath) private var blockPath
 
   @State private var blockMargins: [Int: BlockMargin] = [:]
 
@@ -24,10 +25,13 @@ where
 
   var body: some View {
     VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
-      ForEach(self.data, id: \.self) { element in
+      // A streamed edit changes a block's value, not its position. Keying by the
+      // entire value recreates the view (and its local state) for every token.
+      ForEach(self.data, id: \.index) { element in
         self.content(element.index, element.value)
+          .environment(\.markdownBlockPath, self.blockPath + [element.index])
           .onPreferenceChange(BlockMarginsPreference.self) { value in
-            self.blockMargins[element.hashValue] = value
+            self.blockMargins[element.index] = value
           }
           .padding(.top, self.topPaddingLength(for: element))
       }
@@ -39,10 +43,10 @@ where
       return 0
     }
 
-    let topSpacing = self.blockMargins[element.hashValue]?.top
+    let topSpacing = self.blockMargins[element.index]?.top
     let predecessor = self.data[element.index - 1]
     let predecessorBottomSpacing =
-      self.tightSpacingEnabled ? 0 : self.blockMargins[predecessor.hashValue]?.bottom
+      self.tightSpacingEnabled ? 0 : self.blockMargins[predecessor.index]?.bottom
 
     return [topSpacing, predecessorBottomSpacing]
       .compactMap { $0 }
