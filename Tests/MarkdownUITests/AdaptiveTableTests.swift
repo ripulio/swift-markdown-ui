@@ -43,6 +43,22 @@ final class AdaptiveTableTests: XCTestCase {
   }
 
   @MainActor
+  func testMinimumOverflowCombinesWrappingWithLimitedScrolling() {
+    let sample = Fixture(source: """
+      | One | Two | Three | Four |
+      | --- | --- | --- | --- |
+      | A sufficiently long value | A sufficiently long value | A sufficiently long value | A sufficiently long value |
+      """, width: 280, overflow: .minimum)
+    withHost(sample) { recorder in
+      for column in 0..<4 {
+        XCTAssertEqual(recorder.cells["1:\(column)"]!.width, 96, accuracy: 0.5)
+      }
+      XCTAssertLessThanOrEqual(recorder.cells["1:3"]!.maxX, 390)
+      XCTAssertGreaterThan(recorder.cells["1:0"]!.height, recorder.cells["0:0"]!.height)
+    }
+  }
+
+  @MainActor
   func testColumnAlignmentAndTopAlignmentSurviveWrapping() {
     let sample = Fixture(source: """
       | Left | Middle | Right |
@@ -111,6 +127,7 @@ private struct Fixture: View {
   let source: String
   let width: CGFloat
   var direction: LayoutDirection = .leftToRight
+  var overflow: TableLayoutStyle.Overflow = .natural
   let recorder = Recorder()
 
   var body: some View {
@@ -119,7 +136,7 @@ private struct Fixture: View {
       .markdownBlockStyle(\.table) { configuration in
         ScrollView(.horizontal) {
           configuration.label
-            .markdownTableLayout(.adaptive(availableWidth: width, minimumColumnWidth: 96, maximumColumnWidth: 320))
+            .markdownTableLayout(.adaptive(availableWidth: width, minimumColumnWidth: 96, maximumColumnWidth: 320, overflow: overflow))
             .coordinateSpace(name: "table")
         }
       }

@@ -47,13 +47,14 @@ private struct TableContentView: View {
     switch self.layoutStyle {
     case .automatic:
       self.grid
-    case let .adaptive(availableWidth, minimumColumnWidth, maximumColumnWidth):
+    case let .adaptive(availableWidth, minimumColumnWidth, maximumColumnWidth, overflow):
       AdaptiveTableLayout(
         columnCount: self.columnCount,
         spacing: self.borderWidth,
         availableWidth: max(0, availableWidth - 2 * self.borderWidth),
         minimumColumnWidth: minimumColumnWidth,
-        maximumColumnWidth: maximumColumnWidth
+        maximumColumnWidth: maximumColumnWidth,
+        overflow: overflow
       ) {
         ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
           self.cell(row: index / self.columnCount, column: index % self.columnCount)

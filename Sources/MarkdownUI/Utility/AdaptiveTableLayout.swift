@@ -9,6 +9,7 @@ struct AdaptiveTableLayout: Layout {
   let availableWidth: CGFloat
   let minimumColumnWidth: CGFloat
   let maximumColumnWidth: CGFloat
+  let overflow: TableLayoutStyle.Overflow
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
     self.measure(subviews).size
@@ -57,9 +58,11 @@ struct AdaptiveTableLayout: Layout {
       widths = zip(widths, minimums).map { ideal, minimum in
         minimum + (ideal - minimum) * fraction
       }
+    } else if budget < minimumTotal, self.overflow == .minimum {
+      widths = minimums
     }
-    // If even readable minimums exceed the viewport, keep comfortable columns
-    // and let the surrounding ScrollView expose them instead of crushing text.
+    // Overflow never compresses below the chosen readable minimum. Consumers
+    // can choose minimum widths to combine wrapping with a shorter scroll span.
     var heights = Array(repeating: CGFloat(0), count: (subviews.count + self.columnCount - 1) / self.columnCount)
     for (index, subview) in subviews.enumerated() {
       let height = subview.sizeThatFits(.init(width: widths[index % self.columnCount], height: nil)).height

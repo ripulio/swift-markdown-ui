@@ -9,10 +9,14 @@ The `ripul` branch keeps the parser and public theme API. Its small patch set:
   not discard a code block's controls or accumulate one margin entry per edit.
 - Expose `CodeBlockConfiguration.blockPath`, including nested list and quote
   positions, for independent state in an application's custom code block view.
+- Expose the current `markdownBlockPath` as a read-only public environment value
+  for other block controls, including per-table width choices.
 - Pass the first word of a fence's info string as its highlighting language.
 - Offer opt-in adaptive table sizing through `markdownTableLayout(.adaptive(...))`.
   Measure styled cells, keep short columns compact, wrap longer columns to fit
   the viewport, and retain readable widths when horizontal scrolling is needed.
+  The optional `.minimum` overflow policy limits scroll distance by wrapping
+  columns at their readable minimums when the requested width cannot fit them.
 - Expose `TableCellConfiguration.alignment` for text alignment and read table
   environment modifiers inside the styled label. Cells can fill their entire
   row with top-aligned contents and consistent borders/backgrounds.
@@ -24,7 +28,7 @@ Consumers should pin a release tag or commit, rather than the moving branch.
 For upstream updates, rebase this branch and run `swift test`. On macOS 27 with
 Xcode 27.1, the unchanged upstream `FontPropertiesTests` fails eight opaque SwiftUI
 `Font` equality assertions (reproduced on the unmodified 2.4.1 tag).
-`swift test --skip FontPropertiesTests` runs the remaining 57 tests, including the
+`swift test --skip FontPropertiesTests` runs the remaining 58 tests, including the
 new regression tests. The macOS hosted
 view tests check actual view reuse while the Markdown changes; parser fixtures
 cover longer fences, nested code and document-wide reference links. Hosted table
