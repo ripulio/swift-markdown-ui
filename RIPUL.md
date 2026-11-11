@@ -66,3 +66,8 @@ image views to headings and table cells, including images nested in styles.
 The default retains the inline image provider for those contexts. A sixth iOS
 UI check verifies heading alt labels, actual table image bounds and link taps.
 All 68 applicable package tests still pass.
+
+The `perf/lighter-blocks` pass adds opt-in `markdownBlockMargins(_:)` so themes
+with fixed point margins space blocks from the parsed tree on the first layout
+pass without `BlockMarginsPreference` state or preference updates, preserving
+descendant max-margin reduction and tight-list rules.
