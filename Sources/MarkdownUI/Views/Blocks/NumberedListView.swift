@@ -5,6 +5,7 @@ struct NumberedListView: View {
   @Environment(\.theme.numberedListMarker) private var numberedListMarker
   @Environment(\.listLevel) private var listLevel
   @Environment(\.lightweightListMarkers) private var lightweightListMarkers
+  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   @State private var markerWidth: CGFloat?
 
@@ -19,18 +20,22 @@ struct NumberedListView: View {
   }
 
   var body: some View {
-    self.list.makeBody(
-      configuration: .init(
-        label: .init(self.label),
-        content: .init(
-          block: .numberedList(
-            isTight: self.isTight,
-            start: self.start,
-            items: self.items
+    if self.lightweightBlocks, self.list.isIdentity {
+      self.label
+    } else {
+      self.list.makeBody(
+        configuration: .init(
+          label: .init(self.label),
+          content: .init(
+            block: .numberedList(
+              isTight: self.isTight,
+              start: self.start,
+              items: self.items
+            )
           )
         )
       )
-    )
+    }
   }
 
   @ViewBuilder private var label: some View {

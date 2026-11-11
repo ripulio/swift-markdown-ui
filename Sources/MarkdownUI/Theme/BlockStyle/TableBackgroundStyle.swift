@@ -28,7 +28,20 @@ import SwiftUI
 ///
 /// ![](CustomTableBackground)
 public struct TableBackgroundStyle {
+  enum FastBatching {
+    case clear
+    case alternatingRows(
+      odd: AnyShapeStyle,
+      oddIsClear: Bool,
+      even: AnyShapeStyle,
+      evenIsClear: Bool,
+      header: AnyShapeStyle,
+      headerIsClear: Bool
+    )
+  }
+
   let background: (_ row: Int, _ column: Int) -> AnyShapeStyle
+  let fastBatching: FastBatching?
 
   /// Creates a table background style that customizes table backgrounds by applying a given closure
   /// to the background of each cell.
@@ -37,13 +50,24 @@ public struct TableBackgroundStyle {
     self.background = { row, column in
       AnyShapeStyle(background(row, column))
     }
+    self.fastBatching = nil
+  }
+
+  private init(
+    fastBatching: FastBatching,
+    background: @escaping (_ row: Int, _ column: Int) -> AnyShapeStyle
+  ) {
+    self.fastBatching = fastBatching
+    self.background = background
   }
 }
 
 extension TableBackgroundStyle {
   /// A clear color table background style.
   public static var clear: Self {
-    TableBackgroundStyle { _, _ in Color.clear }
+    TableBackgroundStyle(fastBatching: .clear) { _, _ in
+      AnyShapeStyle(Color.clear)
+    }
   }
 
   /// A table background style that alternates row background shape styles.
@@ -52,12 +76,25 @@ extension TableBackgroundStyle {
   ///   - even: The shape style for even rows.
   ///   - header: The shape style for the header row. If `nil`, the odd row shape style is used.
   public static func alternatingRows<S: ShapeStyle>(_ odd: S, _ even: S, header: S? = nil) -> Self {
-    TableBackgroundStyle { row, _ in
+    let resolvedHeader = header ?? odd
+    let oddAny = AnyShapeStyle(odd)
+    let evenAny = AnyShapeStyle(even)
+    let headerAny = AnyShapeStyle(resolvedHeader)
+    return TableBackgroundStyle(
+      fastBatching: .alternatingRows(
+        odd: oddAny,
+        oddIsClear: (odd as? Color) == Color.clear,
+        even: evenAny,
+        evenIsClear: (even as? Color) == Color.clear,
+        header: headerAny,
+        headerIsClear: (resolvedHeader as? Color) == Color.clear
+      )
+    ) { row, _ in
       guard row > 0 else {
-        return header ?? odd
+        return headerAny
       }
 
-      return row.isMultiple(of: 2) ? even : odd
+      return row.isMultiple(of: 2) ? evenAny : oddAny
     }
   }
 }

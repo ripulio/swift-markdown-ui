@@ -11,6 +11,7 @@ struct AdaptiveTableLayout: Layout {
   let maximumColumnWidth: CGFloat
   let overflow: TableLayoutStyle.Overflow
   let onMeasureWidth: ((CGFloat) -> Void)?
+  let onResolveBounds: (([CGFloat], [CGFloat]) -> Void)?
   let cachesMeasurements: Bool
   let canReuseUnwrappedCellHeights: Bool
 
@@ -20,7 +21,8 @@ struct AdaptiveTableLayout: Layout {
     availableWidth: CGFloat,
     minimumColumnWidth: CGFloat,
     maximumColumnWidth: CGFloat,
-    overflow: TableLayoutStyle.Overflow
+    overflow: TableLayoutStyle.Overflow,
+    onResolveBounds: (([CGFloat], [CGFloat]) -> Void)? = nil
   ) {
     self.columnCount = columnCount
     self.spacing = spacing
@@ -29,6 +31,7 @@ struct AdaptiveTableLayout: Layout {
     self.maximumColumnWidth = maximumColumnWidth
     self.overflow = overflow
     self.onMeasureWidth = nil
+    self.onResolveBounds = onResolveBounds
     self.cachesMeasurements = false
     self.canReuseUnwrappedCellHeights = false
   }
@@ -41,6 +44,7 @@ struct AdaptiveTableLayout: Layout {
     maximumColumnWidth: CGFloat,
     overflow: TableLayoutStyle.Overflow,
     onMeasureWidth: ((CGFloat) -> Void)?,
+    onResolveBounds: (([CGFloat], [CGFloat]) -> Void)? = nil,
     cachesMeasurements: Bool,
     canReuseUnwrappedCellHeights: Bool
   ) {
@@ -51,6 +55,7 @@ struct AdaptiveTableLayout: Layout {
     self.maximumColumnWidth = maximumColumnWidth
     self.overflow = overflow
     self.onMeasureWidth = onMeasureWidth
+    self.onResolveBounds = onResolveBounds
     self.cachesMeasurements = cachesMeasurements
     self.canReuseUnwrappedCellHeights = canReuseUnwrappedCellHeights
   }
@@ -81,6 +86,7 @@ struct AdaptiveTableLayout: Layout {
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
     let measurement = self.resolvedMeasurement(subviews, cache: &cache)
     self.onMeasureWidth?(measurement.size.width)
+    self.onResolveBounds?(measurement.widths, measurement.heights)
     return measurement.size
   }
 
@@ -89,6 +95,7 @@ struct AdaptiveTableLayout: Layout {
   ) {
     let measurement = self.resolvedMeasurement(subviews, cache: &cache)
     self.onMeasureWidth?(measurement.size.width)
+    self.onResolveBounds?(measurement.widths, measurement.heights)
     guard self.columnCount > 0 else { return }
     var y = bounds.minY
     for row in measurement.heights.indices {

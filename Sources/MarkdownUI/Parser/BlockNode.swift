@@ -33,6 +33,25 @@ extension BlockNode {
     guard case .paragraph = self else { return false }
     return true
   }
+
+  var containsImage: Bool {
+    switch self {
+    case .blockquote(let children):
+      return children.contains(where: \.containsImage)
+    case .bulletedList(_, let items), .numberedList(_, _, let items):
+      return items.contains { $0.children.contains(where: \.containsImage) }
+    case .taskList(_, let items):
+      return items.contains { $0.children.contains(where: \.containsImage) }
+    case .paragraph(let content), .heading(_, let content):
+      return content.contains(where: \.containsImage)
+    case .table(_, let rows):
+      return rows.contains { row in
+        row.cells.contains { $0.content.contains(where: \.containsImage) }
+      }
+    case .codeBlock, .htmlBlock, .thematicBreak:
+      return false
+    }
+  }
 }
 
 struct RawListItem: Hashable {

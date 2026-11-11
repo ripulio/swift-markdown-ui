@@ -5,28 +5,43 @@ import SwiftUI
 /// You use a table border selector to select the visible borders when creating a ``TableBorderStyle``.
 public struct TableBorderSelector {
   var rectangles: (_ tableBounds: TableBounds, _ borderWidth: CGFloat) -> [CGRect]
+  var disjointGroups: (@Sendable (_ tableBounds: TableBounds, _ borderWidth: CGFloat) -> [[CGRect]])? = nil
 }
 
 extension TableBorderSelector {
   /// A table border selector that selects the outside borders of a table.
   public static var outsideBorders: TableBorderSelector {
-    TableBorderSelector { tableBounds, borderWidth in
-      [tableBounds.bounds]
-    }
+    TableBorderSelector(
+      rectangles: { tableBounds, _ in
+        [tableBounds.bounds]
+      },
+      disjointGroups: { tableBounds, _ in
+        [[tableBounds.bounds]]
+      }
+    )
   }
 
   /// A table border selector that selects the inside borders of a table.
   public static var insideBorders: TableBorderSelector {
-    TableBorderSelector { tableBounds, borderWidth in
-      Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth)
-        + Self.insideVerticalBorders.rectangles(tableBounds, borderWidth)
-    }
+    TableBorderSelector(
+      rectangles: { tableBounds, borderWidth in
+        Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth)
+          + Self.insideVerticalBorders.rectangles(tableBounds, borderWidth)
+      },
+      disjointGroups: { tableBounds, borderWidth in
+        [
+          Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth),
+          Self.insideVerticalBorders.rectangles(tableBounds, borderWidth),
+        ]
+      }
+    )
   }
 
   /// A table border selector that selects the inside horizontal borders of a table.
   public static var insideHorizontalBorders: TableBorderSelector {
-    TableBorderSelector { tableBounds, borderWidth in
-      (0..<tableBounds.rowCount - 1)
+    let build: @Sendable (TableBounds, CGFloat) -> [CGRect] = { tableBounds, borderWidth in
+      guard tableBounds.rowCount > 1 else { return [] }
+      return (0..<tableBounds.rowCount - 1)
         .map {
           tableBounds.bounds(forRow: $0)
             .insetBy(dx: -borderWidth, dy: -borderWidth)
@@ -38,12 +53,19 @@ extension TableBorderSelector {
           )
         }
     }
+    return TableBorderSelector(
+      rectangles: build,
+      disjointGroups: { tableBounds, borderWidth in
+        [build(tableBounds, borderWidth)]
+      }
+    )
   }
 
   /// A table border selector that selects the inside vertical borders of a table.
   public static var insideVerticalBorders: TableBorderSelector {
-    TableBorderSelector { tableBounds, borderWidth in
-      (0..<tableBounds.columnCount - 1)
+    let build: @Sendable (TableBounds, CGFloat) -> [CGRect] = { tableBounds, borderWidth in
+      guard tableBounds.columnCount > 1 else { return [] }
+      return (0..<tableBounds.columnCount - 1)
         .map {
           tableBounds.bounds(forColumn: $0)
             .insetBy(dx: -borderWidth, dy: -borderWidth)
@@ -55,22 +77,45 @@ extension TableBorderSelector {
           )
         }
     }
+    return TableBorderSelector(
+      rectangles: build,
+      disjointGroups: { tableBounds, borderWidth in
+        [build(tableBounds, borderWidth)]
+      }
+    )
   }
 
   /// A table border selector that selects the horizontal borders of a table.
   public static var horizontalBorders: TableBorderSelector {
-    TableBorderSelector { tableBounds, borderWidth in
-      Self.outsideHorizontalBorders.rectangles(tableBounds, borderWidth)
-        + Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth)
-    }
+    TableBorderSelector(
+      rectangles: { tableBounds, borderWidth in
+        Self.outsideHorizontalBorders.rectangles(tableBounds, borderWidth)
+          + Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth)
+      },
+      disjointGroups: { tableBounds, borderWidth in
+        [
+          Self.outsideHorizontalBorders.rectangles(tableBounds, borderWidth),
+          Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth),
+        ]
+      }
+    )
   }
 
   /// A table border selector that selects all the borders of a table.
   public static var allBorders: TableBorderSelector {
-    TableBorderSelector { tableBounds, borderWidth in
-      Self.insideBorders.rectangles(tableBounds, borderWidth)
-        + Self.outsideBorders.rectangles(tableBounds, borderWidth)
-    }
+    TableBorderSelector(
+      rectangles: { tableBounds, borderWidth in
+        Self.insideBorders.rectangles(tableBounds, borderWidth)
+          + Self.outsideBorders.rectangles(tableBounds, borderWidth)
+      },
+      disjointGroups: { tableBounds, borderWidth in
+        [
+          Self.insideHorizontalBorders.rectangles(tableBounds, borderWidth),
+          Self.insideVerticalBorders.rectangles(tableBounds, borderWidth),
+          Self.outsideBorders.rectangles(tableBounds, borderWidth),
+        ]
+      }
+    )
   }
 }
 

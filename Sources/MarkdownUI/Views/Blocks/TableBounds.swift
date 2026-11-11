@@ -1,5 +1,9 @@
 import SwiftUI
 
+final class TableBoundsBox: @unchecked Sendable {
+  var value: TableBounds?
+}
+
 struct TableBounds {
   var rowCount: Int {
     self.rows.count
@@ -13,6 +17,30 @@ struct TableBounds {
 
   private let rows: [(minY: CGFloat, height: CGFloat)]
   private let columns: [(minX: CGFloat, width: CGFloat)]
+
+  init(widths: [CGFloat], heights: [CGFloat], borderWidth: CGFloat) {
+    var columns: [(minX: CGFloat, width: CGFloat)] = []
+    columns.reserveCapacity(widths.count)
+    var x = borderWidth
+    for width in widths {
+      columns.append((minX: x, width: width))
+      x += width + borderWidth
+    }
+
+    var rows: [(minY: CGFloat, height: CGFloat)] = []
+    rows.reserveCapacity(heights.count)
+    var y = borderWidth
+    for height in heights {
+      rows.append((minY: y, height: height))
+      y += height + borderWidth
+    }
+
+    let totalWidth = widths.isEmpty ? 2 * borderWidth : x
+    let totalHeight = heights.isEmpty ? 2 * borderWidth : y
+    self.bounds = CGRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
+    self.rows = rows
+    self.columns = columns
+  }
 
   fileprivate init(
     rowCount: Int,

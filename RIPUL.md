@@ -76,4 +76,12 @@ for bulleted and single-item numbered lists and fold default bullet marker
 sizing into a single text-style pass, and a closure-driven
 `TableLayoutStyle.adaptive(availableWidth:minimumColumnWidth:maximumColumnWidth:overflow:onMeasureWidth:)`
 overload with layout-pass caching so scroll-wrapped tables read their proposed
-width straight from an enclosing `Layout` on the first pass.
+width straight from an enclosing `Layout` on the first pass. Finally, opt-in
+`markdownLightweightBlocks()` (paired with `Theme.paragraph(lineSpacing:)` and
+`markdownTableCellStyle(_:)`) pre-collects text-style attributes in the
+environment, resolves inline `Font` runs in a single renderer pass without
+per-node `resolvingFonts()`, flattens single-chunk stateless `InlineText`,
+single-child `BlockSequence` and single-paragraph list items without `AnyView`
+wrappers, and replaces adaptive tables' per-cell `TableCellBoundsPreference`
+anchors, `GeometryReader`s and `Rectangle` grids with layout-resolved
+non-overlapping `Shape` batches.

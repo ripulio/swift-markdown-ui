@@ -48,28 +48,28 @@ extension BlockStyle where Configuration == ListMarkerConfiguration {
 
   /// A list marker style that uses a filled circle.
   public static var disc: Self {
-    BlockStyle { _ in
+    BlockStyle(builtinBulletMarker: .disc) { _ in
       ListBullet.disc.markerFrame()
     }
   }
 
   /// A list marker style that uses a hollow circle.
   public static var circle: Self {
-    BlockStyle { _ in
+    BlockStyle(builtinBulletMarker: .circle) { _ in
       ListBullet.circle.markerFrame()
     }
   }
 
   /// A list marker style that uses a filled square.
   public static var square: Self {
-    BlockStyle { _ in
+    BlockStyle(builtinBulletMarker: .square) { _ in
       ListBullet.square.markerFrame()
     }
   }
 
   /// A list marker style that alternates between disc, circle, and square, depending on the list level.
   public static var discCircleSquare: Self {
-    BlockStyle { configuration in
+    BlockStyle(builtinBulletMarker: .discCircleSquare) { configuration in
       switch min(configuration.listLevel, 3) {
       case 1:
         ListBullet.disc.markerFrame()

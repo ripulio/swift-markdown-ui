@@ -1,9 +1,32 @@
 import SwiftUI
 
+/// Lightweight styling parameters for Markdown table cells that avoid per-cell
+/// `AnyView` type erasure when ``View/markdownLightweightBlocks(_:)`` is enabled.
+public struct MarkdownTableCellStyle: Equatable {
+  public var headerFontWeight: Font.Weight?
+  public var lineSpacing: RelativeSize?
+  public var padding: EdgeInsets
+
+  public init(
+    headerFontWeight: Font.Weight? = .semibold,
+    lineSpacing: RelativeSize? = nil,
+    padding: EdgeInsets
+  ) {
+    self.headerFontWeight = headerFontWeight
+    self.lineSpacing = lineSpacing
+    self.padding = padding
+  }
+}
+
 extension View {
   /// Sets column sizing for Markdown tables. The default uses a standard grid.
   public func markdownTableLayout(_ layout: TableLayoutStyle) -> some View {
     self.environment(\.tableLayoutStyle, layout)
+  }
+
+  /// Sets lightweight cell styling for Markdown tables when lightweight blocks are enabled.
+  public func markdownTableCellStyle(_ style: MarkdownTableCellStyle?) -> some View {
+    self.environment(\.tableCellStyle, style)
   }
 
   /// Sets the table border style for the Markdown tables in a view hierarchy.
@@ -44,6 +67,11 @@ extension EnvironmentValues {
     get { self[TableBackgroundStyleKey.self] }
     set { self[TableBackgroundStyleKey.self] = newValue }
   }
+
+  var tableCellStyle: MarkdownTableCellStyle? {
+    get { self[TableCellStyleKey.self] }
+    set { self[TableCellStyleKey.self] = newValue }
+  }
 }
 
 private struct TableLayoutStyleKey: EnvironmentKey {
@@ -56,4 +84,8 @@ private struct TableBorderStyleKey: EnvironmentKey {
 
 private struct TableBackgroundStyleKey: EnvironmentKey {
   static let defaultValue = TableBackgroundStyle.clear
+}
+
+private struct TableCellStyleKey: EnvironmentKey {
+  static let defaultValue: MarkdownTableCellStyle? = nil
 }

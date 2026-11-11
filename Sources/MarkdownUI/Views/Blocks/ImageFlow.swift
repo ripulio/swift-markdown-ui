@@ -33,6 +33,7 @@ struct ImageFlow: View {
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 extension ImageFlow {
   init?(_ inlines: [InlineNode]) {
+    guard inlines.contains(where: \.containsImage) else { return nil }
     let fragments = inlines.imageFragments()
     guard fragments.contains(where: { if case .image = $0 { return true }; return false }) else { return nil }
     self.items = fragments.map { fragment in

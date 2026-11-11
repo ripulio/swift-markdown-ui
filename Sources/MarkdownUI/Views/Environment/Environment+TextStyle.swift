@@ -10,8 +10,10 @@ extension View {
   public func markdownTextStyle<S: TextStyle>(
     @TextStyleBuilder textStyle: @escaping () -> S
   ) -> some View {
-    self.transformEnvironment(\.textStyle) {
-      $0 = $0.appending(textStyle())
+    self.transformEnvironment(\.textStyleEntry) { entry in
+      let next = textStyle()
+      entry.style = entry.style.appending(next)
+      next._collectAttributes(in: &entry.attributes)
     }
   }
 
@@ -28,8 +30,9 @@ extension View {
   }
 
   func textStyle(_ textStyle: TextStyle) -> some View {
-    self.transformEnvironment(\.textStyle) {
-      $0 = $0.appending(textStyle)
+    self.transformEnvironment(\.textStyleEntry) { entry in
+      entry.style = entry.style.appending(textStyle)
+      textStyle._collectAttributes(in: &entry.attributes)
     }
   }
 }
@@ -43,13 +46,31 @@ extension TextStyle {
   }
 }
 
+struct TextStyleEntry {
+  var style: TextStyle
+  var attributes: AttributeContainer
+}
+
 extension EnvironmentValues {
-  fileprivate(set) var textStyle: TextStyle {
+  fileprivate var textStyleEntry: TextStyleEntry {
     get { self[TextStyleKey.self] }
     set { self[TextStyleKey.self] = newValue }
+  }
+
+  var textStyle: TextStyle {
+    self[TextStyleKey.self].style
+  }
+
+  var textStyleAttributes: AttributeContainer {
+    self[TextStyleKey.self].attributes
   }
 }
 
 private struct TextStyleKey: EnvironmentKey {
-  static let defaultValue: TextStyle = FontProperties()
+  static let defaultValue: TextStyleEntry = {
+    let base = FontProperties()
+    var attributes = AttributeContainer()
+    base._collectAttributes(in: &attributes)
+    return TextStyleEntry(style: base, attributes: attributes)
+  }()
 }

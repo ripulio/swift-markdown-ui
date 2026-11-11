@@ -1,8 +1,11 @@
 import SwiftUI
 
-extension Sequence where Element == BlockNode {
+extension Array where Element == BlockNode {
   func filterImagesMatching(colorScheme: ColorScheme) -> [BlockNode] {
-    self.rewrite { inline in
+    guard self.contains(where: \.containsImage) else {
+      return self
+    }
+    return self.rewrite { inline in
       switch inline {
       case .image(let source, _):
         guard let url = URL(string: source), url.matchesColorScheme(colorScheme) else {
@@ -13,6 +16,12 @@ extension Sequence where Element == BlockNode {
         return [inline]
       }
     }
+  }
+}
+
+extension Sequence where Element == BlockNode {
+  func filterImagesMatching(colorScheme: ColorScheme) -> [BlockNode] {
+    Array(self).filterImagesMatching(colorScheme: colorScheme)
   }
 }
 

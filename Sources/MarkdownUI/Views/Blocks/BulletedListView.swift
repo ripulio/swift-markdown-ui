@@ -5,6 +5,7 @@ struct BulletedListView: View {
   @Environment(\.theme.bulletedListMarker) private var bulletedListMarker
   @Environment(\.listLevel) private var listLevel
   @Environment(\.lightweightListMarkers) private var lightweightListMarkers
+  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   private let isTight: Bool
   private let items: [RawListItem]
@@ -15,12 +16,16 @@ struct BulletedListView: View {
   }
 
   var body: some View {
-    self.list.makeBody(
-      configuration: .init(
-        label: .init(self.label),
-        content: .init(block: .bulletedList(isTight: self.isTight, items: self.items))
+    if self.lightweightBlocks, self.list.isIdentity {
+      self.label
+    } else {
+      self.list.makeBody(
+        configuration: .init(
+          label: .init(self.label),
+          content: .init(block: .bulletedList(isTight: self.isTight, items: self.items))
+        )
       )
-    )
+    }
   }
 
   private var label: some View {

@@ -25,6 +25,29 @@ struct ListBullet: View {
   static var square: Self {
     .init(image: .init(systemName: "square.fill"))
   }
+
+  static func builtinImage(
+    for marker: BlockStyle<ListMarkerConfiguration>.BuiltinBulletMarker,
+    listLevel: Int
+  ) -> Image {
+    switch marker {
+    case .disc:
+      return Self.disc.image
+    case .circle:
+      return Self.circle.image
+    case .square:
+      return Self.square.image
+    case .discCircleSquare:
+      switch min(listLevel, 3) {
+      case 1:
+        return Self.disc.image
+      case 2:
+        return Self.circle.image
+      default:
+        return Self.square.image
+      }
+    }
+  }
 }
 
 private struct BulletMarkerFrame: View {

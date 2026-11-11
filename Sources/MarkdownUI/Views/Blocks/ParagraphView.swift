@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ParagraphView: View {
   @Environment(\.theme.paragraph) private var paragraph
+  @Environment(\.lightweightBlocks) private var lightweightBlocks
+  @Environment(\.textStyleAttributes) private var textStyleAttributes
 
   private let content: [InlineNode]
 
@@ -18,12 +20,20 @@ struct ParagraphView: View {
   }
 
   var body: some View {
-    self.paragraph.makeBody(
-      configuration: .init(
-        label: .init(self.label),
-        content: .init(block: .paragraph(content: self.content))
+    if self.lightweightBlocks, let lineSpacing = self.paragraph.paragraphLineSpacing {
+      self.label
+        .fixedSize(horizontal: false, vertical: true)
+        .lineSpacing(lineSpacing.points(relativeTo: self.textStyleAttributes.fontProperties))
+    } else if self.lightweightBlocks, self.paragraph.isIdentity {
+      self.label
+    } else {
+      self.paragraph.makeBody(
+        configuration: .init(
+          label: .init(self.label),
+          content: .init(block: .paragraph(content: self.content))
+        )
       )
-    )
+    }
   }
 
   @ViewBuilder private var label: some View {

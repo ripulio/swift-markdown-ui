@@ -160,22 +160,22 @@ public struct Theme {
   }
 
   /// The paragraph style.
-  public var paragraph = BlockStyle<BlockConfiguration> { $0.label }
+  public var paragraph = BlockStyle<BlockConfiguration>.identity
 
   /// The blockquote style.
-  public var blockquote = BlockStyle<BlockConfiguration> { $0.label }
+  public var blockquote = BlockStyle<BlockConfiguration>.identity
 
   /// The code block style.
   public var codeBlock = BlockStyle<CodeBlockConfiguration> { $0.label }
 
   /// The image style.
-  public var image = BlockStyle<BlockConfiguration> { $0.label }
+  public var image = BlockStyle<BlockConfiguration>.identity
 
   /// The list style.
-  public var list = BlockStyle<BlockConfiguration> { $0.label }
+  public var list = BlockStyle<BlockConfiguration>.identity
 
   /// The list item style.
-  public var listItem = BlockStyle<BlockConfiguration> { $0.label }
+  public var listItem = BlockStyle<BlockConfiguration>.identity
 
   /// The task list marker style.
   public var taskListMarker = BlockStyle.checkmarkSquare
@@ -187,7 +187,7 @@ public struct Theme {
   public var numberedListMarker = BlockStyle.decimal
 
   /// The table style.
-  public var table = BlockStyle<BlockConfiguration> { $0.label }
+  public var table = BlockStyle<BlockConfiguration>.identity
 
   /// The table cell style.
   public var tableCell = BlockStyle<TableCellConfiguration> { $0.label }
@@ -317,6 +317,13 @@ extension Theme {
   ) -> Theme {
     var theme = self
     theme.paragraph = .init(body: body)
+    return theme
+  }
+
+  /// Adds a paragraph style that wraps vertically with the given relative line spacing.
+  public func paragraph(lineSpacing: RelativeSize) -> Theme {
+    var theme = self
+    theme.paragraph = .paragraph(lineSpacing: lineSpacing)
     return theme
   }
 

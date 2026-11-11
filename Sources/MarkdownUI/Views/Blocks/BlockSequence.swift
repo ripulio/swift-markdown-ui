@@ -11,6 +11,7 @@ where
   @Environment(\.markdownBlockPath) private var blockPath
   @Environment(\.markdownBlockMargins) private var staticBlockMargins
   @Environment(\.inlineImageFlow) private var inlineImageFlow
+  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   private let data: [Indexed<Data.Element>]
   private let content: (Int, Data.Element) -> Content
@@ -32,7 +33,8 @@ where
         inlineImageFlow: self.inlineImageFlow,
         textAlignment: self.textAlignment,
         tightSpacingEnabled: self.tightSpacingEnabled,
-        blockPath: self.blockPath
+        blockPath: self.blockPath,
+        lightweightBlocks: self.lightweightBlocks
       )
     } else {
       DynamicBlockSequenceContent(
@@ -54,16 +56,22 @@ private struct StaticBlockSequenceContent<Element: BlockMarginElement, Content: 
   let textAlignment: TextAlignment
   let tightSpacingEnabled: Bool
   let blockPath: [Int]
+  let lightweightBlocks: Bool
 
   var body: some View {
-    let resolved = self.data.map {
-      $0.value.effectiveMargin(using: self.margins, inlineImageFlow: self.inlineImageFlow)
-    }
-    VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
-      ForEach(self.data, id: \.index) { element in
-        self.content(element.index, element.value)
-          .environment(\.markdownBlockPath, self.blockPath + [element.index])
-          .padding(.top, self.topPaddingLength(at: element.index, margins: resolved))
+    if self.lightweightBlocks, self.data.count == 1 {
+      self.content(0, self.data[0].value)
+        .environment(\.markdownBlockPath, self.blockPath + [0])
+    } else {
+      let resolved = self.data.map {
+        $0.value.effectiveMargin(using: self.margins, inlineImageFlow: self.inlineImageFlow)
+      }
+      VStack(alignment: self.textAlignment.alignment.horizontal, spacing: 0) {
+        ForEach(self.data, id: \.index) { element in
+          self.content(element.index, element.value)
+            .environment(\.markdownBlockPath, self.blockPath + [element.index])
+            .padding(.top, self.topPaddingLength(at: element.index, margins: resolved))
+        }
       }
     }
   }

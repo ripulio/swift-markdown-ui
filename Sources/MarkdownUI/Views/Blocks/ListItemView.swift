@@ -3,6 +3,8 @@ import SwiftUI
 struct ListItemView: View {
   @Environment(\.theme.listItem) private var listItem
   @Environment(\.listLevel) private var listLevel
+  @Environment(\.lightweightBlocks) private var lightweightBlocks
+  @Environment(\.textStyleAttributes) private var textStyleAttributes
 
   private let item: RawListItem
   private let number: Int
@@ -25,17 +27,27 @@ struct ListItemView: View {
   }
 
   var body: some View {
-    self.listItem.makeBody(
-      configuration: .init(
-        label: .init(self.label),
-        content: .init(blocks: item.children)
+    if self.lightweightBlocks, self.listItem.isIdentity {
+      self.label
+    } else {
+      self.listItem.makeBody(
+        configuration: .init(
+          label: .init(self.label),
+          content: .init(blocks: item.children)
+        )
       )
-    )
+    }
   }
 
   private var label: some View {
     Label {
-      BlockSequence(self.item.children)
+      if self.lightweightBlocks, self.item.children.count == 1,
+        case .paragraph(let inlines) = self.item.children[0]
+      {
+        ParagraphView(content: inlines)
+      } else {
+        BlockSequence(self.item.children)
+      }
     } icon: {
       if self.readsMarkerWidth {
         self.markerStyle
@@ -43,6 +55,12 @@ struct ListItemView: View {
           .textStyleFont()
           .readWidth(column: 0)
           .frame(width: self.markerWidth, alignment: .trailing)
+      } else if self.lightweightBlocks, let builtin = self.markerStyle.builtinBulletMarker {
+        let fontSize =
+          self.textStyleAttributes.fontProperties?.scaledSize ?? FontProperties.defaultSize
+        ListBullet.builtinImage(for: builtin, listLevel: self.listLevel)
+          .font(.system(size: round(fontSize / 3)))
+          .frame(minWidth: round(1.5 * fontSize), alignment: .trailing)
       } else {
         self.markerStyle
           .makeBody(configuration: .init(listLevel: self.listLevel, itemNumber: self.number))
