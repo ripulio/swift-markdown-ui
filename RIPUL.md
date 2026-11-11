@@ -70,4 +70,7 @@ All 68 applicable package tests still pass.
 The `perf/lighter-blocks` pass adds opt-in `markdownBlockMargins(_:)` so themes
 with fixed point margins space blocks from the parsed tree on the first layout
 pass without `BlockMarginsPreference` state or preference updates, preserving
-descendant max-margin reduction and tight-list rules.
+descendant max-margin reduction and tight-list rules. It also adds opt-in
+`markdownLightweightListMarkers()` to skip marker width preference measurement
+for bulleted and single-item numbered lists and fold default bullet marker
+sizing into a single text-style pass.

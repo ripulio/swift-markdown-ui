@@ -8,17 +8,20 @@ struct ListItemView: View {
   private let number: Int
   private let markerStyle: BlockStyle<ListMarkerConfiguration>
   private let markerWidth: CGFloat?
+  private let readsMarkerWidth: Bool
 
   init(
     item: RawListItem,
     number: Int,
     markerStyle: BlockStyle<ListMarkerConfiguration>,
-    markerWidth: CGFloat?
+    markerWidth: CGFloat?,
+    readsMarkerWidth: Bool = true
   ) {
     self.item = item
     self.number = number
     self.markerStyle = markerStyle
     self.markerWidth = markerWidth
+    self.readsMarkerWidth = readsMarkerWidth
   }
 
   var body: some View {
@@ -34,11 +37,17 @@ struct ListItemView: View {
     Label {
       BlockSequence(self.item.children)
     } icon: {
-      self.markerStyle
-        .makeBody(configuration: .init(listLevel: self.listLevel, itemNumber: self.number))
-        .textStyleFont()
-        .readWidth(column: 0)
-        .frame(width: self.markerWidth, alignment: .trailing)
+      if self.readsMarkerWidth {
+        self.markerStyle
+          .makeBody(configuration: .init(listLevel: self.listLevel, itemNumber: self.number))
+          .textStyleFont()
+          .readWidth(column: 0)
+          .frame(width: self.markerWidth, alignment: .trailing)
+      } else {
+        self.markerStyle
+          .makeBody(configuration: .init(listLevel: self.listLevel, itemNumber: self.number))
+          .textStyleFont()
+      }
     }
     #if os(visionOS)
       .labelStyle(BulletItemStyle())

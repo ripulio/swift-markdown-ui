@@ -4,6 +4,7 @@ struct BulletedListView: View {
   @Environment(\.theme.list) private var list
   @Environment(\.theme.bulletedListMarker) private var bulletedListMarker
   @Environment(\.listLevel) private var listLevel
+  @Environment(\.lightweightListMarkers) private var lightweightListMarkers
 
   private let isTight: Bool
   private let items: [RawListItem]
@@ -23,8 +24,12 @@ struct BulletedListView: View {
   }
 
   private var label: some View {
-    ListItemSequence(items: self.items, markerStyle: self.bulletedListMarker)
-      .environment(\.listLevel, self.listLevel + 1)
-      .environment(\.tightSpacingEnabled, self.isTight)
+    ListItemSequence(
+      items: self.items,
+      markerStyle: self.bulletedListMarker,
+      readsMarkerWidth: !self.lightweightListMarkers
+    )
+    .environment(\.listLevel, self.listLevel + 1)
+    .environment(\.tightSpacingEnabled, self.isTight)
   }
 }

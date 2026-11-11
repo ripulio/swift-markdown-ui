@@ -4,6 +4,7 @@ struct NumberedListView: View {
   @Environment(\.theme.list) private var list
   @Environment(\.theme.numberedListMarker) private var numberedListMarker
   @Environment(\.listLevel) private var listLevel
+  @Environment(\.lightweightListMarkers) private var lightweightListMarkers
 
   @State private var markerWidth: CGFloat?
 
@@ -32,17 +33,24 @@ struct NumberedListView: View {
     )
   }
 
-  private var label: some View {
-    ListItemSequence(
+  @ViewBuilder private var label: some View {
+    let needsWidthSync = !self.lightweightListMarkers || self.items.count > 1
+    let sequence = ListItemSequence(
       items: self.items,
       start: self.start,
       markerStyle: self.numberedListMarker,
-      markerWidth: self.markerWidth
+      markerWidth: needsWidthSync ? self.markerWidth : nil,
+      readsMarkerWidth: needsWidthSync
     )
     .environment(\.listLevel, self.listLevel + 1)
     .environment(\.tightSpacingEnabled, self.isTight)
-    .onColumnWidthChange { columnWidths in
-      self.markerWidth = columnWidths[0]
+
+    if needsWidthSync {
+      sequence.onColumnWidthChange { columnWidths in
+        self.markerWidth = columnWidths[0]
+      }
+    } else {
+      sequence
     }
   }
 }
