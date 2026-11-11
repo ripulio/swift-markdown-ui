@@ -2,9 +2,10 @@ import SwiftUI
 
 struct InlineText: View {
   @Environment(\.lightweightBlocks) private var lightweightBlocks
+  @Environment(\.compactLayout) private var compactLayout
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
-  @Environment(\.theme) private var theme
+  @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.multilineTextAlignment) private var alignment
   @Environment(\.lineSpacing) private var lineSpacing
   @Environment(\.inlineImageFlow) private var inlineImageFlow
@@ -33,17 +34,32 @@ struct InlineText: View {
 
   @ViewBuilder private var lightweightTextBody: some View {
     let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
-    let styles = InlineTextStyles(
-      code: self.theme.code,
-      emphasis: self.theme.emphasis,
-      strong: self.theme.strong,
-      strikethrough: self.theme.strikethrough,
-      link: self.theme.link
-    )
-    if chunks.count == 1 {
+    if self.compactLayout {
+      let cache = PrecomputedInlineAttributes(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
+      if chunks.count == 1 {
+        chunks[0].renderCompactText(
+          baseURL: self.baseURL,
+          softBreakMode: self.softBreakMode,
+          cache: cache
+        )
+      } else {
+        VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
+          ForEach(chunks.indices, id: \.self) { index in
+            chunks[index].renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: cache
+            )
+          }
+        }
+      }
+    } else if chunks.count == 1 {
       chunks[0].renderText(
         baseURL: self.baseURL,
-        textStyles: styles,
+        textStyles: self.inlineStyles,
         images: [:],
         softBreakMode: self.softBreakMode,
         attributes: self.textStyleAttributes,
@@ -54,7 +70,7 @@ struct InlineText: View {
         ForEach(chunks.indices, id: \.self) { index in
           chunks[index].renderText(
             baseURL: self.baseURL,
-            textStyles: styles,
+            textStyles: self.inlineStyles,
             images: [:],
             softBreakMode: self.softBreakMode,
             attributes: self.textStyleAttributes,
@@ -71,7 +87,7 @@ private struct InlineTextWithImages: View {
   @Environment(\.baseURL) private var baseURL
   @Environment(\.imageBaseURL) private var imageBaseURL
   @Environment(\.softBreakMode) private var softBreakMode
-  @Environment(\.theme) private var theme
+  @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.multilineTextAlignment) private var alignment
   @Environment(\.lineSpacing) private var lineSpacing
   @Environment(\.lightweightBlocks) private var lightweightBlocks
@@ -87,13 +103,7 @@ private struct InlineTextWithImages: View {
         ForEach(chunks.indices, id: \.self) { index in
           chunks[index].renderText(
             baseURL: self.baseURL,
-            textStyles: .init(
-              code: self.theme.code,
-              emphasis: self.theme.emphasis,
-              strong: self.theme.strong,
-              strikethrough: self.theme.strikethrough,
-              link: self.theme.link
-            ),
+            textStyles: self.inlineStyles,
             images: self.inlineImages,
             softBreakMode: self.softBreakMode,
             attributes: attributes,

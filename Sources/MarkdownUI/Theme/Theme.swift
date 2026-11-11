@@ -99,24 +99,50 @@ import SwiftUI
 ///   }
 ///   // More block styles...
 /// ```
-public struct Theme {
+public struct Theme: Equatable {
+  private var textRevision: UInt64 = 1
+  private var inlineStylesRevision: UInt64 = 1
+
   /// The default text style.
-  public var text: TextStyle = EmptyTextStyle()
+  public var text: TextStyle = EmptyTextStyle() {
+    didSet { self.textRevision = StyleRevisionID.next() }
+  }
 
   /// The inline code style.
-  public var code: TextStyle = FontFamilyVariant(.monospaced)
+  public var code: TextStyle = FontFamilyVariant(.monospaced) {
+    didSet { self.inlineStylesRevision = StyleRevisionID.next() }
+  }
 
   /// The emphasis style.
-  public var emphasis: TextStyle = FontStyle(.italic)
+  public var emphasis: TextStyle = FontStyle(.italic) {
+    didSet { self.inlineStylesRevision = StyleRevisionID.next() }
+  }
 
   /// The strong style.
-  public var strong: TextStyle = FontWeight(.semibold)
+  public var strong: TextStyle = FontWeight(.semibold) {
+    didSet { self.inlineStylesRevision = StyleRevisionID.next() }
+  }
 
   /// The strikethrough style.
-  public var strikethrough: TextStyle = StrikethroughStyle(.single)
+  public var strikethrough: TextStyle = StrikethroughStyle(.single) {
+    didSet { self.inlineStylesRevision = StyleRevisionID.next() }
+  }
 
   /// The link style.
-  public var link: TextStyle = EmptyTextStyle()
+  public var link: TextStyle = EmptyTextStyle() {
+    didSet { self.inlineStylesRevision = StyleRevisionID.next() }
+  }
+
+  var inlineTextStyles: InlineTextStyles {
+    InlineTextStyles(
+      revision: self.inlineStylesRevision,
+      code: self.code,
+      emphasis: self.emphasis,
+      strong: self.strong,
+      strikethrough: self.strikethrough,
+      link: self.link
+    )
+  }
 
   var headings = Array(
     repeating: BlockStyle<BlockConfiguration> { $0.label },
@@ -197,6 +223,24 @@ public struct Theme {
 
   /// Creates a theme with default text styles.
   public init() {}
+
+  public static func == (lhs: Theme, rhs: Theme) -> Bool {
+    lhs.textRevision == rhs.textRevision
+      && lhs.inlineStylesRevision == rhs.inlineStylesRevision
+      && lhs.paragraph == rhs.paragraph
+      && lhs.blockquote == rhs.blockquote
+      && lhs.codeBlock == rhs.codeBlock
+      && lhs.image == rhs.image
+      && lhs.list == rhs.list
+      && lhs.listItem == rhs.listItem
+      && lhs.taskListMarker == rhs.taskListMarker
+      && lhs.bulletedListMarker == rhs.bulletedListMarker
+      && lhs.numberedListMarker == rhs.numberedListMarker
+      && lhs.table == rhs.table
+      && lhs.tableCell == rhs.tableCell
+      && lhs.thematicBreak == rhs.thematicBreak
+      && lhs.headings == rhs.headings
+  }
 }
 
 extension Theme {

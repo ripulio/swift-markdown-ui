@@ -37,14 +37,15 @@ import SwiftUI
 /// ```
 ///
 /// ![](CustomBlockquote)
-public struct BlockStyle<Configuration> {
-  enum BuiltinBulletMarker {
+public struct BlockStyle<Configuration>: Equatable {
+  enum BuiltinBulletMarker: Equatable {
     case disc
     case circle
     case square
     case discCircleSquare
   }
 
+  private let revision: UInt64
   private let body: (Configuration) -> AnyView
   let isIdentity: Bool
   let builtinBulletMarker: BuiltinBulletMarker?
@@ -53,6 +54,7 @@ public struct BlockStyle<Configuration> {
   /// Creates a block style that customizes a block by applying the given body.
   /// - Parameter body: A view builder that returns the customized block.
   public init<Body: View>(@ViewBuilder body: @escaping (_ configuration: Configuration) -> Body) {
+    self.revision = StyleRevisionID.next()
     self.body = { AnyView(body($0)) }
     self.isIdentity = false
     self.builtinBulletMarker = nil
@@ -60,15 +62,34 @@ public struct BlockStyle<Configuration> {
   }
 
   init<Body: View>(
+    revision: UInt64? = nil,
     isIdentity: Bool = false,
     builtinBulletMarker: BuiltinBulletMarker? = nil,
     paragraphLineSpacing: RelativeSize? = nil,
     @ViewBuilder body: @escaping (_ configuration: Configuration) -> Body
   ) {
+    if let revision {
+      self.revision = revision
+    } else if isIdentity {
+      self.revision = 1
+    } else if let builtinBulletMarker {
+      switch builtinBulletMarker {
+      case .disc: self.revision = 2
+      case .circle: self.revision = 3
+      case .square: self.revision = 4
+      case .discCircleSquare: self.revision = 5
+      }
+    } else {
+      self.revision = StyleRevisionID.next()
+    }
     self.body = { AnyView(body($0)) }
     self.isIdentity = isIdentity
     self.builtinBulletMarker = builtinBulletMarker
     self.paragraphLineSpacing = paragraphLineSpacing
+  }
+
+  public static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.revision == rhs.revision && lhs.paragraphLineSpacing == rhs.paragraphLineSpacing
   }
 
   func makeBody(configuration: Configuration) -> AnyView {
@@ -83,7 +104,7 @@ extension BlockStyle where Configuration == BlockConfiguration {
 
   /// A paragraph block style that wraps vertically with the given relative line spacing.
   public static func paragraph(lineSpacing: RelativeSize) -> Self {
-    Self(paragraphLineSpacing: lineSpacing) { configuration in
+    Self(revision: 6, paragraphLineSpacing: lineSpacing) { configuration in
       configuration.label
         .fixedSize(horizontal: false, vertical: true)
         .relativeLineSpacing(lineSpacing)

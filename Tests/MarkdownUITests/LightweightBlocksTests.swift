@@ -53,6 +53,12 @@ final class LightweightBlocksTests: XCTestCase {
         """
       ),
       ("chunked_40_line_paragraph", longChunkedParagraph),
+      (
+        "multi_paragraphs_8",
+        (1...8).map {
+          "Paragraph \($0) checks multi-paragraph stacks with **bold**, *italic*, `code`, and [link](https://example.com)."
+        }.joined(separator: "\n\n")
+      ),
     ]
   }
 
@@ -94,6 +100,94 @@ final class LightweightBlocksTests: XCTestCase {
   }
 
   @MainActor
+  func testCompactLayoutMatchesSettledHeightsAndRenderedPixelsAcrossCorpus() {
+    for width in [CGFloat(300), CGFloat(400)] {
+      for sample in self.corpus {
+        let baseline = self.render(
+          sample.markdown,
+          width: width,
+          lightweight: false,
+          compact: false
+        )
+        let compact = self.render(
+          sample.markdown,
+          width: width,
+          lightweight: true,
+          compact: true
+        )
+
+        XCTAssertEqual(
+          compact.firstPassHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "Compact first-pass height mismatch for \(sample.name) width=\(width)"
+        )
+        XCTAssertEqual(
+          compact.settledHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "Compact settled height mismatch for \(sample.name) width=\(width)"
+        )
+        XCTAssertNotNil(baseline.tiffData)
+        XCTAssertEqual(
+          compact.tiffData,
+          baseline.tiffData,
+          "Compact pixel mismatch for \(sample.name) width=\(width)"
+        )
+      }
+    }
+  }
+
+  @MainActor
+  func testUnrelatedEnvironmentUpdateDoesNotReevaluateThemeBlockStyleClosure() {
+    final class Counter { var bodyCalls = 0 }
+    let counter = Counter()
+    let theme = self.makeTheme(lightweight: true).blockquote { configuration in
+      counter.bodyCalls += 1
+      return configuration.label
+        .markdownTextStyle { ForegroundColor(.secondary) }
+        .padding(.leading, 14)
+    }
+    final class EnvFlipModel: ObservableObject {
+      @Published var isDisabled = false
+    }
+    struct Harness: View {
+      @ObservedObject var model: EnvFlipModel
+      let theme: Theme
+      let margins: MarkdownBlockMargins
+      var body: some View {
+        Markdown("> Quoted note with `code` and **bold**.")
+          .markdownTheme(self.theme)
+          .markdownBlockMargins(self.margins)
+          .markdownLightweightBlocks()
+          .markdownCompactLayout()
+          .disabled(self.model.isDisabled)
+          .frame(width: 320, alignment: .leading)
+      }
+    }
+
+    let model = EnvFlipModel()
+    let host = NSHostingView(rootView: Harness(model: model, theme: theme, margins: self.chatMargins))
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 320, height: 400),
+      styleMask: [.borderless],
+      backing: .buffered,
+      defer: false
+    )
+    window.contentView = host
+    defer { window.contentView = nil }
+
+    host.layoutSubtreeIfNeeded()
+    let initialCalls = counter.bodyCalls
+    XCTAssertEqual(initialCalls, 1)
+
+    model.isDisabled = true
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+    host.layoutSubtreeIfNeeded()
+    XCTAssertEqual(counter.bodyCalls, initialCalls)
+  }
+
+  @MainActor
   func testCustomParagraphBlockStyleOverrideDisablesFastParagraphPathCleanly() {
     let markdown = "Custom paragraph override with **bold** and `code`."
     let theme = self.makeTheme(lightweight: true)
@@ -130,12 +224,18 @@ final class LightweightBlocksTests: XCTestCase {
   }
 
   @MainActor
-  private func render(_ markdown: String, width: CGFloat, lightweight: Bool) -> Snapshot {
+  private func render(
+    _ markdown: String,
+    width: CGFloat,
+    lightweight: Bool,
+    compact: Bool = false
+  ) -> Snapshot {
     let view = Markdown(markdown)
       .markdownTheme(self.makeTheme(lightweight: lightweight))
       .markdownBlockMargins(self.chatMargins)
       .markdownLightweightListMarkers(lightweight)
       .markdownLightweightBlocks(lightweight)
+      .markdownCompactLayout(compact)
       .markdownSoftBreakMode(.lineBreak)
       .frame(width: width, alignment: .leading)
     return self.runHost(view, width: width)

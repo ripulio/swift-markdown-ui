@@ -30,7 +30,11 @@ private struct TableContentView: View {
   @Environment(\.tableLayoutStyle) private var layoutStyle
   @Environment(\.tableCellStyle) private var tableCellStyle
   @Environment(\.lightweightBlocks) private var lightweightBlocks
+  @Environment(\.compactLayout) private var compactLayout
   @Environment(\.textStyleAttributes) private var textStyleAttributes
+  @Environment(\.theme.inlineTextStyles) private var inlineStyles
+  @Environment(\.baseURL) private var baseURL
+  @Environment(\.softBreakMode) private var softBreakMode
 
   @State private var boundsBox = TableBoundsBox()
 
@@ -80,6 +84,9 @@ private struct TableContentView: View {
 
   @ViewBuilder private var cells: some View {
     let directDecoration = self.usesDirectBoundsDecoration
+    let useCompactCells = self.canUseCompactDirectCells(directDecoration: directDecoration)
+    let compactPadding = useCompactCells ? self.tableCellStyle?.padding : nil
+    let compactAlignments = useCompactCells ? self.columnAlignments.map(TextAlignment.init) : []
     let borderWidth = self.borderWidth
     let boundsBox = self.boundsBox
     let resolveBounds: (([CGFloat], [CGFloat]) -> Void)? =
@@ -99,9 +106,14 @@ private struct TableContentView: View {
         minimumColumnWidth: minimumColumnWidth,
         maximumColumnWidth: maximumColumnWidth,
         overflow: overflow,
-        onResolveBounds: resolveBounds
+        onResolveBounds: resolveBounds,
+        cellPadding: compactPadding,
+        columnAlignments: compactAlignments
       ) {
-        self.adaptiveCellItems(directDecoration: directDecoration)
+        self.adaptiveCellItems(
+          directDecoration: directDecoration,
+          useCompactCells: useCompactCells
+        )
       }
     case let .adaptiveDynamic(configuration):
       let borderInset = 2 * self.borderWidth
@@ -119,15 +131,84 @@ private struct TableContentView: View {
         },
         onResolveBounds: resolveBounds,
         cachesMeasurements: true,
-        canReuseUnwrappedCellHeights: !self.hasImageCells
+        canReuseUnwrappedCellHeights: useCompactCells || !self.hasImageCells,
+        cellPadding: compactPadding,
+        columnAlignments: compactAlignments
       ) {
-        self.adaptiveCellItems(directDecoration: directDecoration)
+        self.adaptiveCellItems(
+          directDecoration: directDecoration,
+          useCompactCells: useCompactCells
+        )
       }
     }
   }
 
-  @ViewBuilder private func adaptiveCellItems(directDecoration: Bool) -> some View {
-    if directDecoration, let cellStyle = self.tableCellStyle {
+  private func canUseCompactDirectCells(directDecoration: Bool) -> Bool {
+    guard self.compactLayout,
+      directDecoration,
+      self.tableCellStyle != nil,
+      self.columnCount > 0,
+      self.rowCount > 0
+    else {
+      return false
+    }
+    let mode = self.softBreakMode
+    for row in self.rows {
+      guard row.cells.count >= self.columnCount else { return false }
+      for column in 0..<self.columnCount {
+        let inlines = row.cells[column].content
+        if inlines.contains(where: \.containsImage) {
+          return false
+        }
+        if inlines.textChunks(softBreakMode: mode).count > 1 {
+          return false
+        }
+      }
+    }
+    return true
+  }
+
+  @ViewBuilder private func adaptiveCellItems(
+    directDecoration: Bool,
+    useCompactCells: Bool
+  ) -> some View {
+    if useCompactCells, let cellStyle = self.tableCellStyle {
+      let bodyCache = PrecomputedInlineAttributes(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
+      let headerCache: PrecomputedInlineAttributes = {
+        guard let weight = cellStyle.headerFontWeight else { return bodyCache }
+        return PrecomputedInlineAttributes(
+          attributes: FontWeight(weight).mergingAttributes(self.textStyleAttributes),
+          inlineStyles: self.inlineStyles
+        )
+      }()
+      let alignments = self.columnAlignments.map(TextAlignment.init)
+      let allLeading = alignments.allSatisfy { $0 == .leading }
+      if allLeading {
+        ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
+          let row = index / self.columnCount
+          let column = index % self.columnCount
+          self.rows[row].cells[column].content.renderCompactText(
+            baseURL: self.baseURL,
+            softBreakMode: self.softBreakMode,
+            cache: row == 0 ? headerCache : bodyCache
+          )
+        }
+      } else {
+        ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
+          let row = index / self.columnCount
+          let column = index % self.columnCount
+          self.rows[row].cells[column].content.renderCompactText(
+            baseURL: self.baseURL,
+            softBreakMode: self.softBreakMode,
+            cache: row == 0 ? headerCache : bodyCache
+          )
+          .multilineTextAlignment(alignments[column])
+        }
+      }
+    } else if directDecoration, let cellStyle = self.tableCellStyle {
       ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
         let row = index / self.columnCount
         let column = index % self.columnCount

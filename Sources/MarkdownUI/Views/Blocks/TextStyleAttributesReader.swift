@@ -1,9 +1,7 @@
 import SwiftUI
 
 struct TextStyleAttributesReader<Content: View>: View {
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
-  @Environment(\.textStyle) private var textStyle
-  @Environment(\.textStyleAttributes) private var precollectedAttributes
+  @Environment(\.textStyleAttributes) private var attributes
 
   private let content: (AttributeContainer) -> Content
 
@@ -13,14 +11,5 @@ struct TextStyleAttributesReader<Content: View>: View {
 
   var body: some View {
     self.content(self.attributes)
-  }
-
-  private var attributes: AttributeContainer {
-    if self.lightweightBlocks {
-      return self.precollectedAttributes
-    }
-    var attributes = AttributeContainer()
-    self.textStyle._collectAttributes(in: &attributes)
-    return attributes
   }
 }

@@ -190,7 +190,7 @@ import SwiftUI
 /// ```
 public struct Markdown: View {
   @Environment(\.colorScheme) private var colorScheme
-  @Environment(\.theme.text) private var text
+  @Environment(\.theme) private var theme
 
   private let content: MarkdownContent
   private let baseURL: URL?
@@ -216,7 +216,7 @@ public struct Markdown: View {
         .background(attributes.backgroundColor)
         .modifier(ScaledFontSizeModifier(attributes.fontProperties?.size))
     }
-    .textStyle(self.text)
+    .textStyle(self.theme.text)
     .environment(\.baseURL, self.baseURL)
     .environment(\.imageBaseURL, self.imageBaseURL)
     .environment(\.markdownBlockPath, [])

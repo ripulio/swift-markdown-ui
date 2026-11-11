@@ -14,6 +14,8 @@ struct AdaptiveTableLayout: Layout {
   let onResolveBounds: (([CGFloat], [CGFloat]) -> Void)?
   let cachesMeasurements: Bool
   let canReuseUnwrappedCellHeights: Bool
+  let cellPadding: EdgeInsets?
+  let columnAlignments: [TextAlignment]
 
   init(
     columnCount: Int,
@@ -22,7 +24,9 @@ struct AdaptiveTableLayout: Layout {
     minimumColumnWidth: CGFloat,
     maximumColumnWidth: CGFloat,
     overflow: TableLayoutStyle.Overflow,
-    onResolveBounds: (([CGFloat], [CGFloat]) -> Void)? = nil
+    onResolveBounds: (([CGFloat], [CGFloat]) -> Void)? = nil,
+    cellPadding: EdgeInsets? = nil,
+    columnAlignments: [TextAlignment] = []
   ) {
     self.columnCount = columnCount
     self.spacing = spacing
@@ -34,6 +38,8 @@ struct AdaptiveTableLayout: Layout {
     self.onResolveBounds = onResolveBounds
     self.cachesMeasurements = false
     self.canReuseUnwrappedCellHeights = false
+    self.cellPadding = cellPadding
+    self.columnAlignments = columnAlignments
   }
 
   init(
@@ -46,7 +52,9 @@ struct AdaptiveTableLayout: Layout {
     onMeasureWidth: ((CGFloat) -> Void)?,
     onResolveBounds: (([CGFloat], [CGFloat]) -> Void)? = nil,
     cachesMeasurements: Bool,
-    canReuseUnwrappedCellHeights: Bool
+    canReuseUnwrappedCellHeights: Bool,
+    cellPadding: EdgeInsets? = nil,
+    columnAlignments: [TextAlignment] = []
   ) {
     self.columnCount = columnCount
     self.spacing = spacing
@@ -58,6 +66,8 @@ struct AdaptiveTableLayout: Layout {
     self.onResolveBounds = onResolveBounds
     self.cachesMeasurements = cachesMeasurements
     self.canReuseUnwrappedCellHeights = canReuseUnwrappedCellHeights
+    self.cellPadding = cellPadding
+    self.columnAlignments = columnAlignments
   }
 
   struct Cache {
@@ -73,6 +83,7 @@ struct AdaptiveTableLayout: Layout {
     let minimumColumnWidth: CGFloat
     let maximumColumnWidth: CGFloat
     let overflow: TableLayoutStyle.Overflow
+    let cellPadding: EdgeInsets?
   }
 
   func makeCache(subviews: Subviews) -> Cache {
@@ -81,6 +92,26 @@ struct AdaptiveTableLayout: Layout {
 
   func updateCache(_ cache: inout Cache, subviews: Subviews) {
     cache = Cache()
+  }
+
+  func explicitAlignment(
+    of guide: HorizontalAlignment,
+    in bounds: CGRect,
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Cache
+  ) -> CGFloat? {
+    nil
+  }
+
+  func explicitAlignment(
+    of guide: VerticalAlignment,
+    in bounds: CGRect,
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Cache
+  ) -> CGFloat? {
+    nil
   }
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
@@ -97,21 +128,61 @@ struct AdaptiveTableLayout: Layout {
     self.onMeasureWidth?(measurement.size.width)
     self.onResolveBounds?(measurement.widths, measurement.heights)
     guard self.columnCount > 0 else { return }
-    var y = bounds.minY
-    for row in measurement.heights.indices {
-      var x = bounds.minX
-      for column in measurement.widths.indices {
-        let index = row * self.columnCount + column
-        guard index < subviews.count else { continue }
-        let width = measurement.widths[column]
-        // SwiftUI mirrors layout placement for right-to-left environments.
-        subviews[index].place(
-          at: CGPoint(x: x, y: y), anchor: .topLeading,
-          proposal: .init(width: width, height: measurement.heights[row])
-        )
-        x += width + self.spacing
+
+    if let pad = self.cellPadding {
+      let horizontalPadding = pad.leading + pad.trailing
+      var y = bounds.minY
+      for row in measurement.heights.indices {
+        var x = bounds.minX
+        for column in measurement.widths.indices {
+          let index = row * self.columnCount + column
+          guard index < subviews.count else { continue }
+          let width = measurement.widths[column]
+          let innerWidth = max(0, width - horizontalPadding)
+          let itemProposal = ProposedViewSize(width: innerWidth, height: nil)
+          let alignment =
+            column < self.columnAlignments.count ? self.columnAlignments[column] : .leading
+          switch alignment {
+          case .leading:
+            subviews[index].place(
+              at: CGPoint(x: x + pad.leading, y: y + pad.top),
+              anchor: .topLeading,
+              proposal: itemProposal
+            )
+          case .center:
+            subviews[index].place(
+              at: CGPoint(x: x + pad.leading + innerWidth * 0.5, y: y + pad.top),
+              anchor: .top,
+              proposal: itemProposal
+            )
+          case .trailing:
+            subviews[index].place(
+              at: CGPoint(x: x + width - pad.trailing, y: y + pad.top),
+              anchor: .topTrailing,
+              proposal: itemProposal
+            )
+          }
+          x += width + self.spacing
+        }
+        y += measurement.heights[row] + self.spacing
       }
-      y += measurement.heights[row] + self.spacing
+    } else {
+      var y = bounds.minY
+      for row in measurement.heights.indices {
+        var x = bounds.minX
+        for column in measurement.widths.indices {
+          let index = row * self.columnCount + column
+          guard index < subviews.count else { continue }
+          let width = measurement.widths[column]
+          // SwiftUI mirrors layout placement for right-to-left environments.
+          subviews[index].place(
+            at: CGPoint(x: x, y: y), anchor: .topLeading,
+            proposal: .init(width: width, height: measurement.heights[row])
+          )
+          x += width + self.spacing
+        }
+        y += measurement.heights[row] + self.spacing
+      }
     }
   }
 
@@ -127,7 +198,8 @@ struct AdaptiveTableLayout: Layout {
       availableWidth: availableWidth,
       minimumColumnWidth: self.minimumColumnWidth,
       maximumColumnWidth: self.maximumColumnWidth,
-      overflow: self.overflow
+      overflow: self.overflow,
+      cellPadding: self.cellPadding
     )
     if cache.key == key, let hit = cache.measurement {
       return hit
@@ -142,6 +214,8 @@ struct AdaptiveTableLayout: Layout {
     guard self.columnCount > 0, !subviews.isEmpty else {
       return Measurement(widths: [], heights: [], size: .zero)
     }
+    let horizontalPadding = self.cellPadding.map { $0.leading + $0.trailing } ?? 0
+    let verticalPadding = self.cellPadding.map { $0.top + $0.bottom } ?? 0
     let maximum = max(1, self.maximumColumnWidth)
     var widths = Array(repeating: CGFloat(0), count: self.columnCount)
     var naturalSizes: [CGSize] = []
@@ -149,7 +223,11 @@ struct AdaptiveTableLayout: Layout {
       naturalSizes.reserveCapacity(subviews.count)
     }
     for (index, subview) in subviews.enumerated() {
-      let natural = subview.sizeThatFits(.unspecified)
+      let raw = subview.sizeThatFits(.unspecified)
+      let natural = CGSize(
+        width: raw.width + horizontalPadding,
+        height: raw.height + verticalPadding
+      )
       if self.canReuseUnwrappedCellHeights {
         naturalSizes.append(natural)
       }
@@ -177,7 +255,8 @@ struct AdaptiveTableLayout: Layout {
       if self.canReuseUnwrappedCellHeights, colWidth >= naturalSizes[index].width - 0.001 {
         height = naturalSizes[index].height
       } else {
-        height = subview.sizeThatFits(.init(width: colWidth, height: nil)).height
+        let proposalWidth = self.cellPadding == nil ? colWidth : max(0, colWidth - horizontalPadding)
+        height = subview.sizeThatFits(.init(width: proposalWidth, height: nil)).height + verticalPadding
       }
       heights[index / self.columnCount] = max(heights[index / self.columnCount], height)
     }

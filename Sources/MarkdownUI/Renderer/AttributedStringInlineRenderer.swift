@@ -1,5 +1,68 @@
 import SwiftUI
 
+final class PrecomputedInlineAttributes {
+  let base: AttributeContainer
+  let resolvedBase: AttributeContainer
+  let inlineStyles: InlineTextStyles
+
+  private var cachedCode: AttributeContainer?
+  private var cachedStrong: AttributeContainer?
+  private var cachedEmphasis: AttributeContainer?
+  private var cachedStrikethrough: AttributeContainer?
+  private var cachedLink: AttributeContainer?
+
+  init(attributes: AttributeContainer, inlineStyles: InlineTextStyles) {
+    self.base = attributes
+    self.resolvedBase = AttributedStringInlineRenderer.resolvingFont(in: attributes)
+    self.inlineStyles = inlineStyles
+  }
+
+  func resolvedCode() -> AttributeContainer {
+    if let cached = self.cachedCode { return cached }
+    let resolved = AttributedStringInlineRenderer.resolvingFont(
+      in: self.inlineStyles.code.mergingAttributes(self.base)
+    )
+    self.cachedCode = resolved
+    return resolved
+  }
+
+  func resolvedStrong() -> AttributeContainer {
+    if let cached = self.cachedStrong { return cached }
+    let resolved = AttributedStringInlineRenderer.resolvingFont(
+      in: self.inlineStyles.strong.mergingAttributes(self.base)
+    )
+    self.cachedStrong = resolved
+    return resolved
+  }
+
+  func resolvedEmphasis() -> AttributeContainer {
+    if let cached = self.cachedEmphasis { return cached }
+    let resolved = AttributedStringInlineRenderer.resolvingFont(
+      in: self.inlineStyles.emphasis.mergingAttributes(self.base)
+    )
+    self.cachedEmphasis = resolved
+    return resolved
+  }
+
+  func resolvedStrikethrough() -> AttributeContainer {
+    if let cached = self.cachedStrikethrough { return cached }
+    let resolved = AttributedStringInlineRenderer.resolvingFont(
+      in: self.inlineStyles.strikethrough.mergingAttributes(self.base)
+    )
+    self.cachedStrikethrough = resolved
+    return resolved
+  }
+
+  func resolvedLink() -> AttributeContainer {
+    if let cached = self.cachedLink { return cached }
+    let resolved = AttributedStringInlineRenderer.resolvingFont(
+      in: self.inlineStyles.link.mergingAttributes(self.base)
+    )
+    self.cachedLink = resolved
+    return resolved
+  }
+}
+
 extension InlineNode {
   func renderAttributedString(
     baseURL: URL?,
@@ -35,6 +98,7 @@ struct AttributedStringInlineRenderer {
     textStyles: InlineTextStyles,
     softBreakMode: SoftBreak.Mode,
     attributes: AttributeContainer,
+    preResolvedAttributes: AttributeContainer? = nil,
     resolvesFontsInline: Bool = false
   ) {
     self.baseURL = baseURL
@@ -42,10 +106,14 @@ struct AttributedStringInlineRenderer {
     self.softBreakMode = softBreakMode
     self.resolvesFontsInline = resolvesFontsInline
     self.attributes = attributes
-    self.resolvedAttributes = resolvesFontsInline ? Self.resolvingFont(in: attributes) : attributes
+    if let preResolvedAttributes {
+      self.resolvedAttributes = preResolvedAttributes
+    } else {
+      self.resolvedAttributes = resolvesFontsInline ? Self.resolvingFont(in: attributes) : attributes
+    }
   }
 
-  private static func resolvingFont(in attributes: AttributeContainer) -> AttributeContainer {
+  static func resolvingFont(in attributes: AttributeContainer) -> AttributeContainer {
     guard let fontProperties = attributes.fontProperties else { return attributes }
     var resolved = attributes
     resolved.font = .withProperties(fontProperties)
@@ -94,11 +162,11 @@ struct AttributedStringInlineRenderer {
     if self.shouldSkipNextWhitespace {
       self.shouldSkipNextWhitespace = false
       if text.first?.isWhitespace == true {
-        text = text.replacingOccurrences(of: "^\\s+", with: "", options: .regularExpression)
+        text = String(text.drop(while: \.isWhitespace))
       }
     }
 
-    self.result += .init(text, attributes: self.resolvedAttributes)
+    self.appendAttributed(.init(text, attributes: self.resolvedAttributes))
   }
 
   private mutating func renderSoftBreak() {
@@ -106,21 +174,21 @@ struct AttributedStringInlineRenderer {
     case .space where self.shouldSkipNextWhitespace:
       self.shouldSkipNextWhitespace = false
     case .space:
-      self.result += .init(" ", attributes: self.resolvedAttributes)
+      self.appendAttributed(.init(" ", attributes: self.resolvedAttributes))
     case .lineBreak:
       self.renderLineBreak()
     }
   }
 
   private mutating func renderLineBreak() {
-    self.result += .init("\n", attributes: self.resolvedAttributes)
+    self.appendAttributed(.init("\n", attributes: self.resolvedAttributes))
   }
 
   private mutating func renderCode(_ code: String) {
     self.shouldSkipNextWhitespace = false
     let merged = self.textStyles.code.mergingAttributes(self.attributes)
     let attrs = self.resolvesFontsInline ? Self.resolvingFont(in: merged) : merged
-    self.result += .init(code, attributes: attrs)
+    self.appendAttributed(.init(code, attributes: attrs))
   }
 
   private mutating func renderHTML(_ html: String) {
@@ -199,10 +267,19 @@ struct AttributedStringInlineRenderer {
   private mutating func renderImage(source: String, children: [InlineNode]) {
     // AttributedString does not support images
   }
+
+  private mutating func appendAttributed(_ run: AttributedString) {
+    guard !run.characters.isEmpty else { return }
+    if self.result.characters.isEmpty {
+      self.result = run
+    } else {
+      self.result += run
+    }
+  }
 }
 
 extension TextStyle {
-  fileprivate func mergingAttributes(_ attributes: AttributeContainer) -> AttributeContainer {
+  func mergingAttributes(_ attributes: AttributeContainer) -> AttributeContainer {
     var newAttributes = attributes
     self._collectAttributes(in: &newAttributes)
     return newAttributes

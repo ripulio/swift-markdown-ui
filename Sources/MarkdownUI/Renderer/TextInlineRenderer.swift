@@ -1,5 +1,28 @@
 import SwiftUI
 
+extension RandomAccessCollection where Element == InlineNode {
+  func renderCompactText(
+    baseURL: URL?,
+    softBreakMode: SoftBreak.Mode,
+    cache: PrecomputedInlineAttributes
+  ) -> Text {
+    if self.count == 1, let first = self.first, case .text(let content) = first {
+      return content.isEmpty
+        ? Text("")
+        : Text(AttributedString(content, attributes: cache.resolvedBase))
+    }
+    var renderer = CompactInlineRenderer(
+      baseURL: baseURL,
+      softBreakMode: softBreakMode,
+      cache: cache
+    )
+    for inline in self {
+      renderer.render(inline)
+    }
+    return renderer.result
+  }
+}
+
 extension Sequence where Element == InlineNode {
   func renderText(
     baseURL: URL?,
@@ -19,6 +42,165 @@ extension Sequence where Element == InlineNode {
     )
     renderer.render(self)
     return renderer.result
+  }
+}
+
+private struct CompactInlineRenderer {
+  private let baseURL: URL?
+  private let softBreakMode: SoftBreak.Mode
+  private let cache: PrecomputedInlineAttributes
+  private var pendingPlain = ""
+  private var shouldSkipNextWhitespace = false
+
+  init(
+    baseURL: URL?,
+    softBreakMode: SoftBreak.Mode,
+    cache: PrecomputedInlineAttributes
+  ) {
+    self.baseURL = baseURL
+    self.softBreakMode = softBreakMode
+    self.cache = cache
+  }
+
+  var result: Text {
+    mutating get {
+      self.flushPending()
+      return self.accumulated.characters.isEmpty ? Text("") : Text(self.accumulated)
+    }
+  }
+
+  private var accumulated = AttributedString()
+
+  mutating func render(_ inline: InlineNode) {
+    switch inline {
+    case .text(let content):
+      if self.shouldSkipNextWhitespace {
+        self.shouldSkipNextWhitespace = false
+        if content.first?.isWhitespace == true {
+          self.pendingPlain += content.drop(while: \.isWhitespace)
+          return
+        }
+      }
+      self.pendingPlain += content
+
+    case .softBreak:
+      switch self.softBreakMode {
+      case .space where self.shouldSkipNextWhitespace:
+        self.shouldSkipNextWhitespace = false
+      case .space:
+        self.pendingPlain.append(" ")
+      case .lineBreak:
+        self.shouldSkipNextWhitespace = true
+        self.pendingPlain.append("\n")
+      }
+
+    case .lineBreak:
+      self.shouldSkipNextWhitespace = false
+      self.pendingPlain.append("\n")
+
+    case .html(let html):
+      if HTMLTag(html)?.name.lowercased() == "br" {
+        self.pendingPlain.append("\n")
+        self.shouldSkipNextWhitespace = true
+      } else {
+        if self.shouldSkipNextWhitespace {
+          self.shouldSkipNextWhitespace = false
+          if html.first?.isWhitespace == true {
+            self.pendingPlain += html.drop(while: \.isWhitespace)
+            return
+          }
+        }
+        self.pendingPlain += html
+      }
+
+    case .code(let code):
+      self.shouldSkipNextWhitespace = false
+      self.flushPending()
+      self.appendRun(code, attributes: self.cache.resolvedCode())
+
+    case .strong(let children) where children.count == 1:
+      self.shouldSkipNextWhitespace = false
+      self.flushPending()
+      if case .text(let s) = children[0] {
+        self.appendRun(s, attributes: self.cache.resolvedStrong())
+      } else {
+        self.renderComplex(inline)
+      }
+
+    case .emphasis(let children) where children.count == 1:
+      self.shouldSkipNextWhitespace = false
+      self.flushPending()
+      if case .text(let s) = children[0] {
+        self.appendRun(s, attributes: self.cache.resolvedEmphasis())
+      } else {
+        self.renderComplex(inline)
+      }
+
+    case .strikethrough(let children) where children.count == 1:
+      self.shouldSkipNextWhitespace = false
+      self.flushPending()
+      if case .text(let s) = children[0] {
+        self.appendRun(s, attributes: self.cache.resolvedStrikethrough())
+      } else {
+        self.renderComplex(inline)
+      }
+
+    case .link(let destination, let children) where children.count == 1:
+      self.shouldSkipNextWhitespace = false
+      self.flushPending()
+      if case .text(let s) = children[0] {
+        var attrs = self.cache.resolvedLink()
+        attrs.link = URL(string: destination, relativeTo: self.baseURL)
+        self.appendRun(s, attributes: attrs)
+      } else {
+        self.renderComplex(inline)
+      }
+
+    default:
+      self.shouldSkipNextWhitespace = false
+      self.flushPending()
+      self.renderComplex(inline)
+    }
+  }
+
+  private mutating func flushPending() {
+    guard !self.pendingPlain.isEmpty else { return }
+    let run = AttributedString(self.pendingPlain, attributes: self.cache.resolvedBase)
+    self.pendingPlain.removeAll(keepingCapacity: true)
+    if self.accumulated.characters.isEmpty {
+      self.accumulated = run
+    } else {
+      self.accumulated += run
+    }
+  }
+
+  private mutating func appendRun(_ text: String, attributes: AttributeContainer) {
+    guard !text.isEmpty else { return }
+    let run = AttributedString(text, attributes: attributes)
+    if self.accumulated.characters.isEmpty {
+      self.accumulated = run
+    } else {
+      self.accumulated += run
+    }
+  }
+
+  private mutating func renderComplex(_ inline: InlineNode) {
+    var fallback = AttributedStringInlineRenderer(
+      baseURL: self.baseURL,
+      textStyles: self.cache.inlineStyles,
+      softBreakMode: self.softBreakMode,
+      attributes: self.cache.base,
+      preResolvedAttributes: self.cache.resolvedBase,
+      resolvesFontsInline: true
+    )
+    fallback.render(inline)
+    let rendered = fallback.result
+    guard !rendered.characters.isEmpty else { return }
+    if self.accumulated.characters.isEmpty {
+      self.accumulated = rendered
+    } else {
+      self.accumulated += rendered
+    }
   }
 }
 

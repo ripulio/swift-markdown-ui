@@ -10,10 +10,8 @@ extension View {
   public func markdownTextStyle<S: TextStyle>(
     @TextStyleBuilder textStyle: @escaping () -> S
   ) -> some View {
-    self.transformEnvironment(\.textStyleEntry) { entry in
-      let next = textStyle()
-      entry.style = entry.style.appending(next)
-      next._collectAttributes(in: &entry.attributes)
+    self.transformEnvironment(\.textStyleAttributes) { attributes in
+      textStyle()._collectAttributes(in: &attributes)
     }
   }
 
@@ -30,47 +28,23 @@ extension View {
   }
 
   func textStyle(_ textStyle: TextStyle) -> some View {
-    self.transformEnvironment(\.textStyleEntry) { entry in
-      entry.style = entry.style.appending(textStyle)
-      textStyle._collectAttributes(in: &entry.attributes)
+    self.transformEnvironment(\.textStyleAttributes) { attributes in
+      textStyle._collectAttributes(in: &attributes)
     }
   }
 }
 
-extension TextStyle {
-  @TextStyleBuilder fileprivate func appending<S: TextStyle>(
-    _ textStyle: S
-  ) -> some TextStyle {
-    self
-    textStyle
-  }
-}
-
-struct TextStyleEntry {
-  var style: TextStyle
-  var attributes: AttributeContainer
-}
-
 extension EnvironmentValues {
-  fileprivate var textStyleEntry: TextStyleEntry {
-    get { self[TextStyleKey.self] }
-    set { self[TextStyleKey.self] = newValue }
-  }
-
-  var textStyle: TextStyle {
-    self[TextStyleKey.self].style
-  }
-
   var textStyleAttributes: AttributeContainer {
-    self[TextStyleKey.self].attributes
+    get { self[TextStyleAttributesKey.self] }
+    set { self[TextStyleAttributesKey.self] = newValue }
   }
 }
 
-private struct TextStyleKey: EnvironmentKey {
-  static let defaultValue: TextStyleEntry = {
-    let base = FontProperties()
+private struct TextStyleAttributesKey: EnvironmentKey {
+  static let defaultValue: AttributeContainer = {
     var attributes = AttributeContainer()
-    base._collectAttributes(in: &attributes)
-    return TextStyleEntry(style: base, attributes: attributes)
+    FontProperties()._collectAttributes(in: &attributes)
+    return attributes
   }()
 }

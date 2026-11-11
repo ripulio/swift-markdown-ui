@@ -85,3 +85,15 @@ single-child `BlockSequence` and single-paragraph list items without `AnyView`
 wrappers, and replaces adaptive tables' per-cell `TableCellBoundsPreference`
 anchors, `GeometryReader`s and `Rectangle` grids with layout-resolved
 non-overlapping `Shape` batches.
+
+Pass 5 on `perf/lighter-blocks` adds opt-in `markdownCompactLayout()` alongside
+`Equatable` conformances on `Theme`, `BlockStyle` and `InlineTextStyles` (and
+storing `AttributeContainer` directly in `EnvironmentValues.textStyleAttributes`
+without boxing an `any TextStyle` existential) so unrelated UIKit/SwiftUI
+environment updates do not re-evaluate `Markdown` or child block/inline views.
+When `markdownCompactLayout()` is enabled, single-paragraph bulleted lists lay
+out bare icon/text pairs directly via `BulletedListLayout` instead of per-item
+`Label`/`HStack`s, adaptive tables place bare `Text` cells with padding and
+column alignment inside `AdaptiveTableLayout`, paragraph-only sequences use
+`ParagraphStackLayout`, and inline runs share `PrecomputedInlineAttributes`
+across items, cells and paragraphs.
