@@ -97,3 +97,14 @@ out bare icon/text pairs directly via `BulletedListLayout` instead of per-item
 column alignment inside `AdaptiveTableLayout`, paragraph-only sequences use
 `ParagraphStackLayout`, and inline runs share `PrecomputedInlineAttributes`
 across items, cells and paragraphs.
+
+Pass 6 on `perf/lighter-blocks` eliminates per-run `Foundation.AttributedString`
+allocation and `AttributedStringTextStorage` Objective-C dictionary bridging for
+plain, strong and emphasis inline runs under `markdownCompactLayout()` by
+building `Text(verbatim:)` segments with direct `Font`/`Color` modifiers and
+balanced binary concatenation (retaining `AttributedString` only for spans with
+background colour, links, underlines or strikethrough), caches `BulletedListLayout`'s
+`Label` cap-centre bullet probe metrics across lists so warm lists omit the
+hidden `Label` subview and icon/spacing queries entirely, and avoids
+`_ConditionalContent` (`DynamicViewList`) wrappers inside single-chunk list and
+paragraph `ForEach` loops.

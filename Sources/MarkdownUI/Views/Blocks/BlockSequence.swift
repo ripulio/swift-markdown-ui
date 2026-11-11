@@ -191,10 +191,11 @@ private struct CompactParagraphSequenceView: View {
     let resolvedLineSpacing = self.paragraphLineSpacing?.points(
       relativeTo: self.textStyleAttributes.fontProperties
     )
+    let itemChunks = self.paragraphs.map { $0.textChunks(softBreakMode: self.softBreakMode) }
 
-    if self.paragraphs.count == 1 {
+    if itemChunks.count == 1 {
       let single = self.paragraphItem(
-        at: 0,
+        chunks: itemChunks[0],
         cache: cache,
         chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
       )
@@ -211,18 +212,14 @@ private struct CompactParagraphSequenceView: View {
           self.margins.paragraph.top,
           self.tightSpacingEnabled ? 0 : self.margins.paragraph.bottom
         ) ?? 0
-      let stack = ParagraphStackLayout(
-        alignment: self.textAlignment,
-        spacing: spacing
-      ) {
-        ForEach(self.paragraphs.indices, id: \.self) { index in
-          self.paragraphItem(
-            at: index,
-            cache: cache,
-            chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
-          )
-        }
-      }
+      let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
+      let stack = self.makeParagraphStack(
+        itemChunks: itemChunks,
+        allSingleChunk: allSingleChunk,
+        spacing: spacing,
+        cache: cache,
+        chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
+      )
       if let resolvedLineSpacing {
         stack
           .fixedSize(horizontal: false, vertical: true)
@@ -233,13 +230,47 @@ private struct CompactParagraphSequenceView: View {
     }
   }
 
-  @ViewBuilder private func paragraphItem(
-    at index: Int,
+  @ViewBuilder private func makeParagraphStack(
+    itemChunks: [[[InlineNode]]],
+    allSingleChunk: Bool,
+    spacing: CGFloat,
     cache: PrecomputedInlineAttributes,
     chunkSpacing: CGFloat
   ) -> some View {
-    let inlines = self.paragraphs[index]
-    let chunks = inlines.textChunks(softBreakMode: self.softBreakMode)
+    if allSingleChunk {
+      ParagraphStackLayout(
+        alignment: self.textAlignment,
+        spacing: spacing
+      ) {
+        ForEach(itemChunks.indices, id: \.self) { index in
+          itemChunks[index][0].renderCompactText(
+            baseURL: self.baseURL,
+            softBreakMode: self.softBreakMode,
+            cache: cache
+          )
+        }
+      }
+    } else {
+      ParagraphStackLayout(
+        alignment: self.textAlignment,
+        spacing: spacing
+      ) {
+        ForEach(itemChunks.indices, id: \.self) { index in
+          self.paragraphItem(
+            chunks: itemChunks[index],
+            cache: cache,
+            chunkSpacing: chunkSpacing
+          )
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private func paragraphItem(
+    chunks: [[InlineNode]],
+    cache: PrecomputedInlineAttributes,
+    chunkSpacing: CGFloat
+  ) -> some View {
     if chunks.count == 1 {
       chunks[0].renderCompactText(
         baseURL: self.baseURL,

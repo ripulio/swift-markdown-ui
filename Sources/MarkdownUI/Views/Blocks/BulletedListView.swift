@@ -86,6 +86,7 @@ private struct CompactBulletedListView: View {
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.lineSpacing) private var environmentLineSpacing
   @Environment(\.multilineTextAlignment) private var textAlignment
+  @Environment(\.displayScale) private var displayScale
 
   let paragraphs: [[InlineNode]]
   let isTight: Bool
@@ -95,8 +96,8 @@ private struct CompactBulletedListView: View {
   let paragraphLineSpacing: RelativeSize?
 
   var body: some View {
-    let fontSize =
-      self.textStyleAttributes.fontProperties?.scaledSize ?? FontProperties.defaultSize
+    let fontProperties = self.textStyleAttributes.fontProperties
+    let fontSize = fontProperties?.scaledSize ?? FontProperties.defaultSize
     let bulletImage = ListBullet.builtinImage(for: self.builtinMarker, listLevel: self.nextListLevel)
     let bulletFont = Font.system(size: round(fontSize / 3))
     let minBulletWidth = round(1.5 * fontSize)
@@ -110,40 +111,155 @@ private struct CompactBulletedListView: View {
       attributes: self.textStyleAttributes,
       inlineStyles: self.inlineStyles
     )
-
-    let listBody = BulletedListLayout(
+    let probeKey = BulletProbeKey(
+      symbolVariant: Self.symbolVariant(for: self.builtinMarker, listLevel: self.nextListLevel),
+      fontSize: fontSize,
       minBulletWidth: minBulletWidth,
-      itemSpacing: itemSpacing
-    ) {
-      Label {
-        Text(AttributedString("A", attributes: cache.resolvedBase))
-      } icon: {
-        bulletImage
-          .font(bulletFont)
-          .frame(minWidth: minBulletWidth, minHeight: 100, alignment: .topTrailing)
-      }
-      .hidden()
-      ForEach(self.paragraphs.indices, id: \.self) { index in
-        bulletImage.font(bulletFont)
-        self.itemText(at: index, cache: cache)
-      }
-    }
+      fontProperties: fontProperties,
+      baselineOffset: self.textStyleAttributes.baselineOffset,
+      displayScale: self.displayScale
+    )
+    let cachedProbe = BulletProbeMetricsCache.lookup(probeKey)
+    let itemChunks = self.paragraphs.map { $0.textChunks(softBreakMode: self.softBreakMode) }
+    let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
+
+    let listBody = self.makeListLayout(
+      bulletImage: bulletImage,
+      bulletFont: bulletFont,
+      minBulletWidth: minBulletWidth,
+      itemSpacing: itemSpacing,
+      cache: cache,
+      probeKey: probeKey,
+      cachedProbe: cachedProbe,
+      itemChunks: itemChunks,
+      allSingleChunk: allSingleChunk
+    )
 
     if let paragraphLineSpacing = self.paragraphLineSpacing {
       listBody.lineSpacing(
-        paragraphLineSpacing.points(relativeTo: self.textStyleAttributes.fontProperties)
+        paragraphLineSpacing.points(relativeTo: fontProperties)
       )
     } else {
       listBody
     }
   }
 
-  @ViewBuilder private func itemText(
-    at index: Int,
+  private static func symbolVariant(
+    for marker: BlockStyle<ListMarkerConfiguration>.BuiltinBulletMarker,
+    listLevel: Int
+  ) -> Int {
+    switch marker {
+    case .disc:
+      return 0
+    case .circle:
+      return 1
+    case .square:
+      return 2
+    case .discCircleSquare:
+      switch min(listLevel, 3) {
+      case 1: return 0
+      case 2: return 1
+      default: return 2
+      }
+    }
+  }
+
+  @ViewBuilder private func makeListLayout(
+    bulletImage: Image,
+    bulletFont: Font,
+    minBulletWidth: CGFloat,
+    itemSpacing: CGFloat,
+    cache: PrecomputedInlineAttributes,
+    probeKey: BulletProbeKey,
+    cachedProbe: BulletProbeMetrics?,
+    itemChunks: [[[InlineNode]]],
+    allSingleChunk: Bool
+  ) -> some View {
+    if let cachedProbe {
+      if allSingleChunk {
+        BulletedListLayout(
+          minBulletWidth: minBulletWidth,
+          itemSpacing: itemSpacing,
+          probeKey: probeKey,
+          cachedProbe: cachedProbe,
+          hasLeadingProbeSubview: false
+        ) {
+          ForEach(itemChunks.indices, id: \.self) { index in
+            bulletImage.font(bulletFont)
+            itemChunks[index][0].renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: cache
+            )
+          }
+        }
+      } else {
+        BulletedListLayout(
+          minBulletWidth: minBulletWidth,
+          itemSpacing: itemSpacing,
+          probeKey: probeKey,
+          cachedProbe: cachedProbe,
+          hasLeadingProbeSubview: false
+        ) {
+          ForEach(itemChunks.indices, id: \.self) { index in
+            bulletImage.font(bulletFont)
+            self.chunkedItemText(chunks: itemChunks[index], cache: cache)
+          }
+        }
+      }
+    } else if allSingleChunk {
+      BulletedListLayout(
+        minBulletWidth: minBulletWidth,
+        itemSpacing: itemSpacing,
+        probeKey: probeKey,
+        cachedProbe: nil,
+        hasLeadingProbeSubview: true
+      ) {
+        Label {
+          cache.directBase.makeText("A")
+        } icon: {
+          bulletImage
+            .font(bulletFont)
+            .frame(minWidth: minBulletWidth, minHeight: 100, alignment: .topTrailing)
+        }
+        .hidden()
+        ForEach(itemChunks.indices, id: \.self) { index in
+          bulletImage.font(bulletFont)
+          itemChunks[index][0].renderCompactText(
+            baseURL: self.baseURL,
+            softBreakMode: self.softBreakMode,
+            cache: cache
+          )
+        }
+      }
+    } else {
+      BulletedListLayout(
+        minBulletWidth: minBulletWidth,
+        itemSpacing: itemSpacing,
+        probeKey: probeKey,
+        cachedProbe: nil,
+        hasLeadingProbeSubview: true
+      ) {
+        Label {
+          cache.directBase.makeText("A")
+        } icon: {
+          bulletImage
+            .font(bulletFont)
+            .frame(minWidth: minBulletWidth, minHeight: 100, alignment: .topTrailing)
+        }
+        .hidden()
+        ForEach(itemChunks.indices, id: \.self) { index in
+          bulletImage.font(bulletFont)
+          self.chunkedItemText(chunks: itemChunks[index], cache: cache)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private func chunkedItemText(
+    chunks: [[InlineNode]],
     cache: PrecomputedInlineAttributes
   ) -> some View {
-    let inlines = self.paragraphs[index]
-    let chunks = inlines.textChunks(softBreakMode: self.softBreakMode)
     if chunks.count == 1 {
       chunks[0].renderCompactText(
         baseURL: self.baseURL,

@@ -1,19 +1,83 @@
 import SwiftUI
 
+struct DirectTextStyle {
+  let font: Font?
+  let foregroundColor: Color?
+  let kern: CGFloat?
+  let tracking: CGFloat?
+  let baselineOffset: CGFloat?
+  let fallbackAttributes: AttributeContainer?
+
+  init(resolved: AttributeContainer) {
+    var probe = resolved
+    probe.font = nil
+    probe.foregroundColor = nil
+    probe.kern = nil
+    probe.tracking = nil
+    probe.baselineOffset = nil
+    if probe == AttributeContainer() {
+      self.font = resolved.font
+      self.foregroundColor = resolved.foregroundColor
+      self.kern = resolved.kern
+      self.tracking = resolved.tracking
+      self.baselineOffset = resolved.baselineOffset
+      self.fallbackAttributes = nil
+    } else {
+      self.font = nil
+      self.foregroundColor = nil
+      self.kern = nil
+      self.tracking = nil
+      self.baselineOffset = nil
+      self.fallbackAttributes = resolved
+    }
+  }
+
+  func makeText(_ content: String) -> Text {
+    guard !content.isEmpty else { return Text(verbatim: "") }
+    if let fallbackAttributes {
+      return Text(AttributedString(content, attributes: fallbackAttributes))
+    }
+    var text = Text(verbatim: content)
+    if let font {
+      text = text.font(font)
+    }
+    if let foregroundColor {
+      text = text.foregroundColor(foregroundColor)
+    }
+    if let kern {
+      text = text.kerning(kern)
+    }
+    if let tracking {
+      text = text.tracking(tracking)
+    }
+    if let baselineOffset {
+      text = text.baselineOffset(baselineOffset)
+    }
+    return text
+  }
+}
+
 final class PrecomputedInlineAttributes {
   let base: AttributeContainer
   let resolvedBase: AttributeContainer
+  let directBase: DirectTextStyle
   let inlineStyles: InlineTextStyles
 
   private var cachedCode: AttributeContainer?
+  private var cachedDirectCode: DirectTextStyle?
   private var cachedStrong: AttributeContainer?
+  private var cachedDirectStrong: DirectTextStyle?
   private var cachedEmphasis: AttributeContainer?
+  private var cachedDirectEmphasis: DirectTextStyle?
   private var cachedStrikethrough: AttributeContainer?
+  private var cachedDirectStrikethrough: DirectTextStyle?
   private var cachedLink: AttributeContainer?
 
   init(attributes: AttributeContainer, inlineStyles: InlineTextStyles) {
     self.base = attributes
-    self.resolvedBase = AttributedStringInlineRenderer.resolvingFont(in: attributes)
+    let resolvedBase = AttributedStringInlineRenderer.resolvingFont(in: attributes)
+    self.resolvedBase = resolvedBase
+    self.directBase = DirectTextStyle(resolved: resolvedBase)
     self.inlineStyles = inlineStyles
   }
 
@@ -26,6 +90,13 @@ final class PrecomputedInlineAttributes {
     return resolved
   }
 
+  func directCode() -> DirectTextStyle {
+    if let cached = self.cachedDirectCode { return cached }
+    let direct = DirectTextStyle(resolved: self.resolvedCode())
+    self.cachedDirectCode = direct
+    return direct
+  }
+
   func resolvedStrong() -> AttributeContainer {
     if let cached = self.cachedStrong { return cached }
     let resolved = AttributedStringInlineRenderer.resolvingFont(
@@ -33,6 +104,13 @@ final class PrecomputedInlineAttributes {
     )
     self.cachedStrong = resolved
     return resolved
+  }
+
+  func directStrong() -> DirectTextStyle {
+    if let cached = self.cachedDirectStrong { return cached }
+    let direct = DirectTextStyle(resolved: self.resolvedStrong())
+    self.cachedDirectStrong = direct
+    return direct
   }
 
   func resolvedEmphasis() -> AttributeContainer {
@@ -44,6 +122,13 @@ final class PrecomputedInlineAttributes {
     return resolved
   }
 
+  func directEmphasis() -> DirectTextStyle {
+    if let cached = self.cachedDirectEmphasis { return cached }
+    let direct = DirectTextStyle(resolved: self.resolvedEmphasis())
+    self.cachedDirectEmphasis = direct
+    return direct
+  }
+
   func resolvedStrikethrough() -> AttributeContainer {
     if let cached = self.cachedStrikethrough { return cached }
     let resolved = AttributedStringInlineRenderer.resolvingFont(
@@ -51,6 +136,13 @@ final class PrecomputedInlineAttributes {
     )
     self.cachedStrikethrough = resolved
     return resolved
+  }
+
+  func directStrikethrough() -> DirectTextStyle {
+    if let cached = self.cachedDirectStrikethrough { return cached }
+    let direct = DirectTextStyle(resolved: self.resolvedStrikethrough())
+    self.cachedDirectStrikethrough = direct
+    return direct
   }
 
   func resolvedLink() -> AttributeContainer {

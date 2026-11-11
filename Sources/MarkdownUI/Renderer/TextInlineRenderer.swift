@@ -7,9 +7,7 @@ extension RandomAccessCollection where Element == InlineNode {
     cache: PrecomputedInlineAttributes
   ) -> Text {
     if self.count == 1, let first = self.first, case .text(let content) = first {
-      return content.isEmpty
-        ? Text("")
-        : Text(AttributedString(content, attributes: cache.resolvedBase))
+      return cache.directBase.makeText(content)
     }
     var renderer = CompactInlineRenderer(
       baseURL: baseURL,
@@ -51,6 +49,7 @@ private struct CompactInlineRenderer {
   private let cache: PrecomputedInlineAttributes
   private var pendingPlain = ""
   private var shouldSkipNextWhitespace = false
+  private var segments: [Text] = []
 
   init(
     baseURL: URL?,
@@ -65,11 +64,16 @@ private struct CompactInlineRenderer {
   var result: Text {
     mutating get {
       self.flushPending()
-      return self.accumulated.characters.isEmpty ? Text("") : Text(self.accumulated)
+      return Self.combine(self.segments[...])
     }
   }
 
-  private var accumulated = AttributedString()
+  private static func combine(_ segments: ArraySlice<Text>) -> Text {
+    guard !segments.isEmpty else { return Text(verbatim: "") }
+    guard segments.count > 1 else { return segments.first! }
+    let middle = segments.index(segments.startIndex, offsetBy: segments.count / 2)
+    return combine(segments[..<middle]) + combine(segments[middle...])
+  }
 
   mutating func render(_ inline: InlineNode) {
     switch inline {
@@ -116,13 +120,17 @@ private struct CompactInlineRenderer {
     case .code(let code):
       self.shouldSkipNextWhitespace = false
       self.flushPending()
-      self.appendRun(code, attributes: self.cache.resolvedCode())
+      if !code.isEmpty {
+        self.segments.append(self.cache.directCode().makeText(code))
+      }
 
     case .strong(let children) where children.count == 1:
       self.shouldSkipNextWhitespace = false
       self.flushPending()
       if case .text(let s) = children[0] {
-        self.appendRun(s, attributes: self.cache.resolvedStrong())
+        if !s.isEmpty {
+          self.segments.append(self.cache.directStrong().makeText(s))
+        }
       } else {
         self.renderComplex(inline)
       }
@@ -131,7 +139,9 @@ private struct CompactInlineRenderer {
       self.shouldSkipNextWhitespace = false
       self.flushPending()
       if case .text(let s) = children[0] {
-        self.appendRun(s, attributes: self.cache.resolvedEmphasis())
+        if !s.isEmpty {
+          self.segments.append(self.cache.directEmphasis().makeText(s))
+        }
       } else {
         self.renderComplex(inline)
       }
@@ -140,7 +150,9 @@ private struct CompactInlineRenderer {
       self.shouldSkipNextWhitespace = false
       self.flushPending()
       if case .text(let s) = children[0] {
-        self.appendRun(s, attributes: self.cache.resolvedStrikethrough())
+        if !s.isEmpty {
+          self.segments.append(self.cache.directStrikethrough().makeText(s))
+        }
       } else {
         self.renderComplex(inline)
       }
@@ -149,9 +161,11 @@ private struct CompactInlineRenderer {
       self.shouldSkipNextWhitespace = false
       self.flushPending()
       if case .text(let s) = children[0] {
-        var attrs = self.cache.resolvedLink()
-        attrs.link = URL(string: destination, relativeTo: self.baseURL)
-        self.appendRun(s, attributes: attrs)
+        if !s.isEmpty {
+          var attrs = self.cache.resolvedLink()
+          attrs.link = URL(string: destination, relativeTo: self.baseURL)
+          self.segments.append(Text(AttributedString(s, attributes: attrs)))
+        }
       } else {
         self.renderComplex(inline)
       }
@@ -165,23 +179,8 @@ private struct CompactInlineRenderer {
 
   private mutating func flushPending() {
     guard !self.pendingPlain.isEmpty else { return }
-    let run = AttributedString(self.pendingPlain, attributes: self.cache.resolvedBase)
+    self.segments.append(self.cache.directBase.makeText(self.pendingPlain))
     self.pendingPlain.removeAll(keepingCapacity: true)
-    if self.accumulated.characters.isEmpty {
-      self.accumulated = run
-    } else {
-      self.accumulated += run
-    }
-  }
-
-  private mutating func appendRun(_ text: String, attributes: AttributeContainer) {
-    guard !text.isEmpty else { return }
-    let run = AttributedString(text, attributes: attributes)
-    if self.accumulated.characters.isEmpty {
-      self.accumulated = run
-    } else {
-      self.accumulated += run
-    }
   }
 
   private mutating func renderComplex(_ inline: InlineNode) {
@@ -196,11 +195,7 @@ private struct CompactInlineRenderer {
     fallback.render(inline)
     let rendered = fallback.result
     guard !rendered.characters.isEmpty else { return }
-    if self.accumulated.characters.isEmpty {
-      self.accumulated = rendered
-    } else {
-      self.accumulated += rendered
-    }
+    self.segments.append(Text(rendered))
   }
 }
 
