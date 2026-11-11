@@ -72,9 +72,15 @@ public struct MarkdownContent: Equatable, MarkdownContentProtocol {
 
   public var _markdownContent: MarkdownContent { self }
   let blocks: [BlockNode]
+  let hasImages: Bool
 
   init(blocks: [BlockNode] = []) {
     self.blocks = blocks
+    self.hasImages = blocks.contains(where: \.containsImage)
+  }
+
+  public static func == (lhs: MarkdownContent, rhs: MarkdownContent) -> Bool {
+    lhs.blocks == rhs.blocks
   }
 
   init(block: BlockNode) {

@@ -3,6 +3,7 @@ import SwiftUI
 struct InlineText: View {
   @Environment(\.lightweightBlocks) private var lightweightBlocks
   @Environment(\.compactLayout) private var compactLayout
+  @Environment(\.directBlocks) private var directBlocks
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
@@ -33,49 +34,66 @@ struct InlineText: View {
   }
 
   @ViewBuilder private var lightweightTextBody: some View {
-    let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
     if self.compactLayout {
-      let cache = PrecomputedInlineAttributes(
-        attributes: self.textStyleAttributes,
-        inlineStyles: self.inlineStyles
-      )
-      if chunks.count == 1 {
-        chunks[0].renderCompactText(
+      let cache =
+        self.directBlocks
+        ? InlineAttributesCache.lookup(
+          attributes: self.textStyleAttributes,
+          inlineStyles: self.inlineStyles
+        )
+        : PrecomputedInlineAttributes(
+          attributes: self.textStyleAttributes,
+          inlineStyles: self.inlineStyles
+        )
+      if self.directBlocks, !self.inlines.hasMultipleTextChunks(softBreakMode: self.softBreakMode) {
+        self.inlines.renderCompactText(
           baseURL: self.baseURL,
           softBreakMode: self.softBreakMode,
           cache: cache
         )
       } else {
-        VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
-          ForEach(chunks.indices, id: \.self) { index in
-            chunks[index].renderCompactText(
-              baseURL: self.baseURL,
-              softBreakMode: self.softBreakMode,
-              cache: cache
-            )
+        let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
+        if chunks.count == 1 {
+          chunks[0].renderCompactText(
+            baseURL: self.baseURL,
+            softBreakMode: self.softBreakMode,
+            cache: cache
+          )
+        } else {
+          VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
+            ForEach(chunks.indices, id: \.self) { index in
+              chunks[index].renderCompactText(
+                baseURL: self.baseURL,
+                softBreakMode: self.softBreakMode,
+                cache: cache
+              )
+            }
           }
         }
       }
-    } else if chunks.count == 1 {
-      chunks[0].renderText(
-        baseURL: self.baseURL,
-        textStyles: self.inlineStyles,
-        images: [:],
-        softBreakMode: self.softBreakMode,
-        attributes: self.textStyleAttributes,
-        preResolveFonts: true
-      )
     } else {
-      VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
-        ForEach(chunks.indices, id: \.self) { index in
-          chunks[index].renderText(
-            baseURL: self.baseURL,
-            textStyles: self.inlineStyles,
-            images: [:],
-            softBreakMode: self.softBreakMode,
-            attributes: self.textStyleAttributes,
-            preResolveFonts: true
-          )
+      let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
+      if chunks.count == 1 {
+        chunks[0].renderText(
+          baseURL: self.baseURL,
+          textStyles: self.inlineStyles,
+          images: [:],
+          softBreakMode: self.softBreakMode,
+          attributes: self.textStyleAttributes,
+          preResolveFonts: true
+        )
+      } else {
+        VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
+          ForEach(chunks.indices, id: \.self) { index in
+            chunks[index].renderText(
+              baseURL: self.baseURL,
+              textStyles: self.inlineStyles,
+              images: [:],
+              softBreakMode: self.softBreakMode,
+              attributes: self.textStyleAttributes,
+              preResolveFonts: true
+            )
+          }
         }
       }
     }

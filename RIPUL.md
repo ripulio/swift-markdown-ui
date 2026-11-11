@@ -108,3 +108,18 @@ background colour, links, underlines or strikethrough), caches `BulletedListLayo
 hidden `Label` subview and icon/spacing queries entirely, and avoids
 `_ConditionalContent` (`DynamicViewList`) wrappers inside single-chunk list and
 paragraph `ForEach` loops.
+
+Pass 7 on `perf/lighter-blocks` adds opt-in `markdownDirectBlocks()` (paired
+with `Theme.headings(fontWeight:fontSize:lineSpacing:)` /
+`BlockStyle.heading(fontWeight:fontSize:lineSpacing:)`): top-level mixed block
+sequences bypass `VStack`, `ForEach`, per-block `.padding(.top, ...)`,
+`BlockNode` enum conditional chains, `ParagraphView`, `HeadingView` (`AnyView`
+and `.id(kebabCased())`) and redundant `markdownBlockPath` writes via
+`DirectBlockSequenceView` and `BlockSpacedStackLayout` (with a homogeneous
+`Text` fast path for pure heading-and-paragraph runs); homogeneous item batches
+under 32 elements unroll into static binary tuples (`StaticViewBatch`) instead
+of `ForEach` / `DynamicViewList` (and 16-item chunks at or above 32);
+`InlineAttributesCache` shares pre-warmed `PrecomputedInlineAttributes` across
+headings, paragraphs, lists and table cells; `MarkdownContent` tracks
+`hasImages` at parse time so image-free documents skip `filterImagesMatching`;
+and single-chunk checks use zero-allocation `hasMultipleTextChunks`.

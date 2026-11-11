@@ -73,12 +73,23 @@ final class PrecomputedInlineAttributes {
   private var cachedDirectStrikethrough: DirectTextStyle?
   private var cachedLink: AttributeContainer?
 
-  init(attributes: AttributeContainer, inlineStyles: InlineTextStyles) {
+  init(
+    attributes: AttributeContainer,
+    inlineStyles: InlineTextStyles,
+    prewarmAll: Bool = false
+  ) {
     self.base = attributes
     let resolvedBase = AttributedStringInlineRenderer.resolvingFont(in: attributes)
     self.resolvedBase = resolvedBase
     self.directBase = DirectTextStyle(resolved: resolvedBase)
     self.inlineStyles = inlineStyles
+    if prewarmAll {
+      _ = self.directCode()
+      _ = self.directStrong()
+      _ = self.directEmphasis()
+      _ = self.directStrikethrough()
+      _ = self.resolvedLink()
+    }
   }
 
   func resolvedCode() -> AttributeContainer {
@@ -152,6 +163,75 @@ final class PrecomputedInlineAttributes {
     )
     self.cachedLink = resolved
     return resolved
+  }
+}
+
+enum InlineAttributesCache {
+  private struct Entry {
+    let inlineStylesRevision: UInt64
+    let base: AttributeContainer
+    let overrideWeight: Font.Weight?
+    let overrideSize: RelativeSize?
+    let value: PrecomputedInlineAttributes
+  }
+
+  private static let lock = NSLock()
+  private static var entries: [Entry] = []
+
+  static func lookup(
+    attributes: AttributeContainer,
+    inlineStyles: InlineTextStyles,
+    overrideWeight: Font.Weight? = nil,
+    overrideSize: RelativeSize? = nil
+  ) -> PrecomputedInlineAttributes {
+    let revision = inlineStyles.revision
+    Self.lock.lock()
+    if let hitIndex = Self.entries.firstIndex(where: {
+      $0.inlineStylesRevision == revision
+        && $0.overrideWeight == overrideWeight
+        && $0.overrideSize == overrideSize
+        && $0.base == attributes
+    }) {
+      let entry = Self.entries[hitIndex]
+      if hitIndex > 0 {
+        Self.entries.remove(at: hitIndex)
+        Self.entries.insert(entry, at: 0)
+      }
+      Self.lock.unlock()
+      return entry.value
+    }
+    Self.lock.unlock()
+
+    var effective = attributes
+    if let overrideWeight {
+      FontWeight(overrideWeight)._collectAttributes(in: &effective)
+    }
+    if let overrideSize {
+      FontSize(overrideSize)._collectAttributes(in: &effective)
+    }
+    // Pre-warm every inline variant before publishing so cached instances are immutable on read.
+    let built = PrecomputedInlineAttributes(
+      attributes: effective,
+      inlineStyles: inlineStyles,
+      prewarmAll: true
+    )
+
+    Self.lock.lock()
+    if Self.entries.count >= 24 {
+      Self.entries.removeLast()
+    }
+    Self.entries.insert(
+      Entry(
+        inlineStylesRevision: revision,
+        base: attributes,
+        overrideWeight: overrideWeight,
+        overrideSize: overrideSize,
+        value: built
+      ),
+      at: 0
+    )
+    Self.lock.unlock()
+    return built
   }
 }
 

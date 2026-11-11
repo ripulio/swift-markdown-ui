@@ -45,11 +45,18 @@ public struct BlockStyle<Configuration>: Equatable {
     case discCircleSquare
   }
 
+  struct HeadingStyleSpec: Equatable {
+    let fontWeight: Font.Weight?
+    let fontSize: RelativeSize?
+    let lineSpacing: RelativeSize?
+  }
+
   private let revision: UInt64
   private let body: (Configuration) -> AnyView
   let isIdentity: Bool
   let builtinBulletMarker: BuiltinBulletMarker?
   let paragraphLineSpacing: RelativeSize?
+  let headingSpec: HeadingStyleSpec?
 
   /// Creates a block style that customizes a block by applying the given body.
   /// - Parameter body: A view builder that returns the customized block.
@@ -59,6 +66,7 @@ public struct BlockStyle<Configuration>: Equatable {
     self.isIdentity = false
     self.builtinBulletMarker = nil
     self.paragraphLineSpacing = nil
+    self.headingSpec = nil
   }
 
   init<Body: View>(
@@ -66,6 +74,7 @@ public struct BlockStyle<Configuration>: Equatable {
     isIdentity: Bool = false,
     builtinBulletMarker: BuiltinBulletMarker? = nil,
     paragraphLineSpacing: RelativeSize? = nil,
+    headingSpec: HeadingStyleSpec? = nil,
     @ViewBuilder body: @escaping (_ configuration: Configuration) -> Body
   ) {
     if let revision {
@@ -86,10 +95,13 @@ public struct BlockStyle<Configuration>: Equatable {
     self.isIdentity = isIdentity
     self.builtinBulletMarker = builtinBulletMarker
     self.paragraphLineSpacing = paragraphLineSpacing
+    self.headingSpec = headingSpec
   }
 
   public static func == (lhs: Self, rhs: Self) -> Bool {
-    lhs.revision == rhs.revision && lhs.paragraphLineSpacing == rhs.paragraphLineSpacing
+    lhs.revision == rhs.revision
+      && lhs.paragraphLineSpacing == rhs.paragraphLineSpacing
+      && lhs.headingSpec == rhs.headingSpec
   }
 
   func makeBody(configuration: Configuration) -> AnyView {
@@ -108,6 +120,36 @@ extension BlockStyle where Configuration == BlockConfiguration {
       configuration.label
         .fixedSize(horizontal: false, vertical: true)
         .relativeLineSpacing(lineSpacing)
+    }
+  }
+
+  /// A declarative heading block style applying an optional font weight, relative font size,
+  /// and relative line spacing without requiring per-heading environment closures when direct
+  /// block rendering is enabled.
+  public static func heading(
+    fontWeight: Font.Weight? = nil,
+    fontSize: RelativeSize? = nil,
+    lineSpacing: RelativeSize? = nil
+  ) -> Self {
+    let spec = HeadingStyleSpec(
+      fontWeight: fontWeight,
+      fontSize: fontSize,
+      lineSpacing: lineSpacing
+    )
+    return Self(revision: 7, headingSpec: spec) { configuration in
+      let styled = configuration.label.markdownTextStyle {
+        if let fontWeight {
+          FontWeight(fontWeight)
+        }
+        if let fontSize {
+          FontSize(fontSize)
+        }
+      }
+      if let lineSpacing {
+        styled.relativeLineSpacing(lineSpacing)
+      } else {
+        styled
+      }
     }
   }
 }

@@ -13,6 +13,8 @@ where
   @Environment(\.inlineImageFlow) private var inlineImageFlow
   @Environment(\.lightweightBlocks) private var lightweightBlocks
   @Environment(\.compactLayout) private var compactLayout
+  @Environment(\.directBlocks) private var directBlocks
+  @Environment(\.listLevel) private var listLevel
   @Environment(\.theme.paragraph) private var paragraph
 
   private let data: [Indexed<Data.Element>]
@@ -52,6 +54,27 @@ where
           textAlignment: self.textAlignment,
           tightSpacingEnabled: self.tightSpacingEnabled,
           paragraphLineSpacing: self.paragraph.paragraphLineSpacing
+        )
+      } else if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
+        self.directBlocks,
+        self.compactLayout,
+        self.lightweightBlocks,
+        self.listLevel == 0,
+        let rawBlocks = self.rawBlocks,
+        !rawBlocks.isEmpty,
+        let topSpacings = DirectBlockSequenceView.computeTopSpacings(
+          rawBlocks: rawBlocks,
+          margins: staticBlockMargins,
+          inlineImageFlow: self.inlineImageFlow,
+          tightSpacingEnabled: self.tightSpacingEnabled
+        )
+      {
+        DirectBlockSequenceView(
+          rawBlocks: rawBlocks,
+          topSpacings: topSpacings,
+          margins: staticBlockMargins,
+          textAlignment: self.textAlignment,
+          blockPath: self.blockPath
         )
       } else {
         StaticBlockSequenceContent(
@@ -176,6 +199,7 @@ private struct CompactParagraphSequenceView: View {
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.lineSpacing) private var environmentLineSpacing
+  @Environment(\.directBlocks) private var directBlocks
 
   let paragraphs: [[InlineNode]]
   let margins: MarkdownBlockMargins
@@ -184,48 +208,99 @@ private struct CompactParagraphSequenceView: View {
   let paragraphLineSpacing: RelativeSize?
 
   var body: some View {
-    let cache = PrecomputedInlineAttributes(
-      attributes: self.textStyleAttributes,
-      inlineStyles: self.inlineStyles
-    )
+    let cache =
+      self.directBlocks
+      ? InlineAttributesCache.lookup(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
+      : PrecomputedInlineAttributes(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
     let resolvedLineSpacing = self.paragraphLineSpacing?.points(
       relativeTo: self.textStyleAttributes.fontProperties
     )
-    let itemChunks = self.paragraphs.map { $0.textChunks(softBreakMode: self.softBreakMode) }
 
-    if itemChunks.count == 1 {
-      let single = self.paragraphItem(
-        chunks: itemChunks[0],
-        cache: cache,
-        chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
-      )
-      if let resolvedLineSpacing {
-        single
-          .fixedSize(horizontal: false, vertical: true)
-          .lineSpacing(resolvedLineSpacing)
+    if self.directBlocks,
+      !self.paragraphs.contains(where: { $0.hasMultipleTextChunks(softBreakMode: self.softBreakMode) })
+    {
+      if self.paragraphs.count == 1 {
+        let single = self.paragraphs[0].renderCompactText(
+          baseURL: self.baseURL,
+          softBreakMode: self.softBreakMode,
+          cache: cache
+        )
+        if let resolvedLineSpacing {
+          single
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(resolvedLineSpacing)
+        } else {
+          single
+        }
       } else {
-        single
+        let spacing =
+          BlockMargin.max(
+            self.margins.paragraph.top,
+            self.tightSpacingEnabled ? 0 : self.margins.paragraph.bottom
+          ) ?? 0
+        let stack = ParagraphStackLayout(
+          alignment: self.textAlignment,
+          spacing: spacing
+        ) {
+          StaticViewBatch(count: self.paragraphs.count) { index in
+            self.paragraphs[index].renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: cache
+            )
+          }
+        }
+        if let resolvedLineSpacing {
+          stack
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(resolvedLineSpacing)
+        } else {
+          stack
+        }
       }
     } else {
-      let spacing =
-        BlockMargin.max(
-          self.margins.paragraph.top,
-          self.tightSpacingEnabled ? 0 : self.margins.paragraph.bottom
-        ) ?? 0
-      let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
-      let stack = self.makeParagraphStack(
-        itemChunks: itemChunks,
-        allSingleChunk: allSingleChunk,
-        spacing: spacing,
-        cache: cache,
-        chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
-      )
-      if let resolvedLineSpacing {
-        stack
-          .fixedSize(horizontal: false, vertical: true)
-          .lineSpacing(resolvedLineSpacing)
+      let itemChunks = self.paragraphs.map { $0.textChunks(softBreakMode: self.softBreakMode) }
+
+      if itemChunks.count == 1 {
+        let single = self.paragraphItem(
+          chunks: itemChunks[0],
+          cache: cache,
+          chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
+        )
+        if let resolvedLineSpacing {
+          single
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(resolvedLineSpacing)
+        } else {
+          single
+        }
       } else {
-        stack
+        let spacing =
+          BlockMargin.max(
+            self.margins.paragraph.top,
+            self.tightSpacingEnabled ? 0 : self.margins.paragraph.bottom
+          ) ?? 0
+        let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
+        let stack = self.makeParagraphStack(
+          itemChunks: itemChunks,
+          allSingleChunk: allSingleChunk,
+          spacing: spacing,
+          cache: cache,
+          chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
+        )
+        if let resolvedLineSpacing {
+          stack
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(resolvedLineSpacing)
+        } else {
+          stack
+        }
       }
     }
   }
@@ -413,6 +488,432 @@ private struct ParagraphStackLayout: Layout {
       totalHeight += measured.height
     }
     totalHeight += CGFloat(max(0, subviews.count - 1)) * self.spacing
+    cache.key = key
+    cache.itemSizes = sizes
+    cache.size = CGSize(width: maxWidth, height: totalHeight)
+  }
+}
+
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+private struct DirectBlockSequenceView: View {
+  fileprivate struct ProseItem {
+    let text: Text
+    let lineSpacing: CGFloat
+    let needsVerticalFixedSize: Bool
+  }
+
+  fileprivate enum DirectItem {
+    case prose(ProseItem)
+    case bulletedList(
+      paragraphs: [[InlineNode]],
+      isTight: Bool,
+      builtinMarker: BlockStyle<ListMarkerConfiguration>.BuiltinBulletMarker
+    )
+    case codeBlock(fenceInfo: String?, content: String, index: Int)
+    case table(columnAlignments: [RawTableColumnAlignment], rows: [RawTableRow], index: Int)
+    case thematicBreak
+    case other(block: BlockNode, index: Int)
+  }
+
+  @Environment(\.theme) private var theme
+  @Environment(\.textStyleAttributes) private var textStyleAttributes
+  @Environment(\.baseURL) private var baseURL
+  @Environment(\.softBreakMode) private var softBreakMode
+  @Environment(\.lineSpacing) private var environmentLineSpacing
+  @Environment(\.lightweightListMarkers) private var lightweightListMarkers
+
+  let rawBlocks: [BlockNode]
+  let topSpacings: [CGFloat]
+  let margins: MarkdownBlockMargins
+  let textAlignment: TextAlignment
+  let blockPath: [Int]
+
+  static func computeTopSpacings(
+    rawBlocks: [BlockNode],
+    margins: MarkdownBlockMargins,
+    inlineImageFlow: Bool,
+    tightSpacingEnabled: Bool
+  ) -> [CGFloat]? {
+    guard !rawBlocks.isEmpty else { return [] }
+    if rawBlocks.count == 1 {
+      return [0]
+    }
+    var spacings: [CGFloat] = []
+    spacings.reserveCapacity(rawBlocks.count)
+    spacings.append(0)
+    var previousMargin = Self.fastEffectiveMargin(
+      for: rawBlocks[0],
+      margins: margins,
+      inlineImageFlow: inlineImageFlow
+    )
+    for index in 1..<rawBlocks.count {
+      let currentMargin = Self.fastEffectiveMargin(
+        for: rawBlocks[index],
+        margins: margins,
+        inlineImageFlow: inlineImageFlow
+      )
+      let prevBottom = tightSpacingEnabled ? 0 : previousMargin.bottom
+      guard let spacing = BlockMargin.max(currentMargin.top, prevBottom) else {
+        return nil
+      }
+      spacings.append(spacing)
+      previousMargin = currentMargin
+    }
+    return spacings
+  }
+
+  private static func fastEffectiveMargin(
+    for block: BlockNode,
+    margins: MarkdownBlockMargins,
+    inlineImageFlow: Bool
+  ) -> BlockMargin {
+    switch block {
+    case .bulletedList(_, let items) where !items.isEmpty:
+      if BulletedListView.extractSimpleParagraphItems(items) != nil {
+        return margins.list.combined(with: margins.listItem).combined(with: margins.paragraph)
+      }
+      return block.effectiveMargin(using: margins, inlineImageFlow: inlineImageFlow)
+    default:
+      return block.effectiveMargin(using: margins, inlineImageFlow: inlineImageFlow)
+    }
+  }
+
+  var body: some View {
+    let inlineStyles = self.theme.inlineTextStyles
+    let fontProperties = self.textStyleAttributes.fontProperties
+    let paragraphStyle = self.theme.paragraph
+    let canDirectParagraph = paragraphStyle.paragraphLineSpacing != nil || paragraphStyle.isIdentity
+    let resolvedParagraphLineSpacing = paragraphStyle.paragraphLineSpacing?.points(
+      relativeTo: fontProperties
+    )
+    let canCompactList =
+      self.lightweightListMarkers
+      && self.theme.list.isIdentity
+      && self.theme.listItem.isIdentity
+      && canDirectParagraph
+    let builtinBullet = self.theme.bulletedListMarker.builtinBulletMarker
+
+    var lazyBodyCache: PrecomputedInlineAttributes?
+    func getBodyCache() -> PrecomputedInlineAttributes {
+      if let cached = lazyBodyCache { return cached }
+      let built = InlineAttributesCache.lookup(
+        attributes: self.textStyleAttributes,
+        inlineStyles: inlineStyles
+      )
+      lazyBodyCache = built
+      return built
+    }
+
+    var items: [DirectItem] = []
+    items.reserveCapacity(self.rawBlocks.count)
+    var allProse = true
+
+    for (index, block) in self.rawBlocks.enumerated() {
+      switch block {
+      case .paragraph(let inlines)
+      where canDirectParagraph
+        && !inlines.contains(where: \.containsImage)
+        && !inlines.hasMultipleTextChunks(softBreakMode: self.softBreakMode):
+        let text = inlines.renderCompactText(
+          baseURL: self.baseURL,
+          softBreakMode: self.softBreakMode,
+          cache: getBodyCache()
+        )
+        items.append(
+          .prose(
+            ProseItem(
+              text: text,
+              lineSpacing: resolvedParagraphLineSpacing ?? self.environmentLineSpacing,
+              needsVerticalFixedSize: resolvedParagraphLineSpacing != nil
+            )
+          )
+        )
+
+      case .heading(let level, let inlines):
+        let headingStyle = self.theme.headings[level - 1]
+        if (headingStyle.headingSpec != nil || headingStyle.isIdentity),
+          !inlines.contains(where: \.containsImage),
+          !inlines.hasMultipleTextChunks(softBreakMode: self.softBreakMode)
+        {
+          let spec = headingStyle.headingSpec
+          let cache =
+            (spec?.fontWeight == nil && spec?.fontSize == nil)
+            ? getBodyCache()
+            : InlineAttributesCache.lookup(
+              attributes: self.textStyleAttributes,
+              inlineStyles: inlineStyles,
+              overrideWeight: spec?.fontWeight,
+              overrideSize: spec?.fontSize
+            )
+          let text = inlines.renderCompactText(
+            baseURL: self.baseURL,
+            softBreakMode: self.softBreakMode,
+            cache: cache
+          )
+          let resolvedHeadingSpacing =
+            spec?.lineSpacing?.points(relativeTo: fontProperties) ?? self.environmentLineSpacing
+          items.append(
+            .prose(
+              ProseItem(
+                text: text,
+                lineSpacing: resolvedHeadingSpacing,
+                needsVerticalFixedSize: false
+              )
+            )
+          )
+        } else {
+          allProse = false
+          items.append(.other(block: block, index: index))
+        }
+
+      case .bulletedList(let isTight, let listItems):
+        allProse = false
+        if canCompactList,
+          let builtinBullet,
+          let paragraphs = BulletedListView.extractSimpleParagraphItems(listItems)
+        {
+          items.append(
+            .bulletedList(
+              paragraphs: paragraphs,
+              isTight: isTight,
+              builtinMarker: builtinBullet
+            )
+          )
+        } else {
+          items.append(.other(block: block, index: index))
+        }
+
+      case .codeBlock(let fenceInfo, let content):
+        allProse = false
+        items.append(.codeBlock(fenceInfo: fenceInfo, content: content, index: index))
+
+      case .table(let columnAlignments, let rows):
+        allProse = false
+        items.append(.table(columnAlignments: columnAlignments, rows: rows, index: index))
+
+      case .thematicBreak:
+        allProse = false
+        items.append(.thematicBreak)
+
+      default:
+        allProse = false
+        items.append(.other(block: block, index: index))
+      }
+    }
+
+    return self.makeSequenceBody(
+      items: items,
+      allProse: allProse,
+      paragraphLineSpacing: paragraphStyle.paragraphLineSpacing
+    )
+  }
+
+  @ViewBuilder private func makeSequenceBody(
+    items: [DirectItem],
+    allProse: Bool,
+    paragraphLineSpacing: RelativeSize?
+  ) -> some View {
+    if items.count == 1 {
+      self.singleItemView(items[0], paragraphLineSpacing: paragraphLineSpacing)
+    } else if allProse {
+      BlockSpacedStackLayout(
+        alignment: self.textAlignment,
+        topSpacings: self.topSpacings
+      ) {
+        StaticViewBatch(count: items.count) { index in
+          if case .prose(let prose) = items[index] {
+            prose.text.lineSpacing(prose.lineSpacing)
+          }
+        }
+      }
+    } else {
+      BlockSpacedStackLayout(
+        alignment: self.textAlignment,
+        topSpacings: self.topSpacings
+      ) {
+        StaticViewBatch(count: items.count) { index in
+          self.mixedItemView(items[index], paragraphLineSpacing: paragraphLineSpacing)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private func singleItemView(
+    _ item: DirectItem,
+    paragraphLineSpacing: RelativeSize?
+  ) -> some View {
+    switch item {
+    case .prose(let prose):
+      if prose.needsVerticalFixedSize {
+        prose.text
+          .fixedSize(horizontal: false, vertical: true)
+          .lineSpacing(prose.lineSpacing)
+      } else {
+        prose.text.lineSpacing(prose.lineSpacing)
+      }
+    default:
+      self.mixedItemView(item, paragraphLineSpacing: paragraphLineSpacing)
+    }
+  }
+
+  @ViewBuilder private func mixedItemView(
+    _ item: DirectItem,
+    paragraphLineSpacing: RelativeSize?
+  ) -> some View {
+    switch item {
+    case .prose(let prose):
+      prose.text.lineSpacing(prose.lineSpacing)
+    case let .bulletedList(paragraphs, isTight, builtinMarker):
+      CompactBulletedListView(
+        paragraphs: paragraphs,
+        isTight: isTight,
+        nextListLevel: 1,
+        builtinMarker: builtinMarker,
+        margins: self.margins,
+        paragraphLineSpacing: paragraphLineSpacing
+      )
+    case let .codeBlock(fenceInfo, content, index):
+      CodeBlockView(fenceInfo: fenceInfo, content: content)
+        .environment(\.markdownBlockPath, self.blockPath + [index])
+    case let .table(columnAlignments, rows, index):
+      TableView(columnAlignments: columnAlignments, rows: rows)
+        .environment(\.markdownBlockPath, self.blockPath + [index])
+    case .thematicBreak:
+      self.theme.thematicBreak.makeBody(configuration: ())
+    case let .other(block, index):
+      block
+        .environment(\.markdownBlockPath, self.blockPath + [index])
+    }
+  }
+}
+
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+private struct BlockSpacedStackLayout: Layout {
+  let alignment: TextAlignment
+  let topSpacings: [CGFloat]
+
+  struct Cache {
+    var key: CacheKey?
+    var itemSizes: [CGSize] = []
+    var size: CGSize = .zero
+  }
+
+  struct CacheKey: Equatable {
+    let subviewCount: Int
+    let availableWidth: CGFloat?
+    let topSpacings: [CGFloat]
+    let alignment: TextAlignment
+  }
+
+  func makeCache(subviews: Subviews) -> Cache {
+    Cache()
+  }
+
+  func updateCache(_ cache: inout Cache, subviews: Subviews) {
+    cache = Cache()
+  }
+
+  func explicitAlignment(
+    of guide: HorizontalAlignment,
+    in bounds: CGRect,
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Cache
+  ) -> CGFloat? {
+    nil
+  }
+
+  func explicitAlignment(
+    of guide: VerticalAlignment,
+    in bounds: CGRect,
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Cache
+  ) -> CGFloat? {
+    nil
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+    self.resolve(proposalWidth: proposal.width, subviews: subviews, cache: &cache)
+    return cache.size
+  }
+
+  func placeSubviews(
+    in bounds: CGRect,
+    proposal: ProposedViewSize,
+    subviews: Subviews,
+    cache: inout Cache
+  ) {
+    if cache.key?.subviewCount != subviews.count
+      || abs(cache.size.width - bounds.width) >= 0.01
+      || abs(cache.size.height - bounds.height) >= 0.01
+    {
+      self.resolve(proposalWidth: proposal.width ?? bounds.width, subviews: subviews, cache: &cache)
+    }
+    let proposalWidth = cache.key?.availableWidth
+    var y = bounds.minY
+    for (index, subview) in subviews.enumerated() {
+      if index > 0, index < self.topSpacings.count {
+        y += self.topSpacings[index]
+      }
+      let itemSize = cache.itemSizes[index]
+      let itemProposal = ProposedViewSize(width: proposalWidth, height: itemSize.height)
+      switch self.alignment {
+      case .leading:
+        subview.place(
+          at: CGPoint(x: bounds.minX, y: y),
+          anchor: .topLeading,
+          proposal: itemProposal
+        )
+      case .center:
+        subview.place(
+          at: CGPoint(x: bounds.midX, y: y),
+          anchor: .top,
+          proposal: itemProposal
+        )
+      case .trailing:
+        subview.place(
+          at: CGPoint(x: bounds.maxX, y: y),
+          anchor: .topTrailing,
+          proposal: itemProposal
+        )
+      }
+      y += itemSize.height
+    }
+  }
+
+  private func resolve(proposalWidth: CGFloat?, subviews: Subviews, cache: inout Cache) {
+    let normalizedWidth: CGFloat? =
+      if let w = proposalWidth, w.isFinite { w } else { nil }
+    let key = CacheKey(
+      subviewCount: subviews.count,
+      availableWidth: normalizedWidth,
+      topSpacings: self.topSpacings,
+      alignment: self.alignment
+    )
+    if cache.key == key {
+      return
+    }
+    guard !subviews.isEmpty else {
+      cache.key = key
+      cache.itemSizes = []
+      cache.size = .zero
+      return
+    }
+    let itemProposal = ProposedViewSize(width: normalizedWidth, height: nil)
+    var sizes: [CGSize] = []
+    sizes.reserveCapacity(subviews.count)
+    var maxWidth: CGFloat = 0
+    var totalHeight: CGFloat = 0
+    for (index, subview) in subviews.enumerated() {
+      if index > 0, index < self.topSpacings.count {
+        totalHeight += self.topSpacings[index]
+      }
+      let measured = subview.sizeThatFits(itemProposal)
+      sizes.append(measured)
+      maxWidth = max(maxWidth, measured.width)
+      totalHeight += measured.height
+    }
     cache.key = key
     cache.itemSizes = sizes
     cache.size = CGSize(width: maxWidth, height: totalHeight)

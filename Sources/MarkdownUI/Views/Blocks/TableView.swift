@@ -31,6 +31,7 @@ private struct TableContentView: View {
   @Environment(\.tableCellStyle) private var tableCellStyle
   @Environment(\.lightweightBlocks) private var lightweightBlocks
   @Environment(\.compactLayout) private var compactLayout
+  @Environment(\.directBlocks) private var directBlocks
   @Environment(\.textStyleAttributes) private var textStyleAttributes
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.baseURL) private var baseURL
@@ -160,7 +161,11 @@ private struct TableContentView: View {
         if inlines.contains(where: \.containsImage) {
           return false
         }
-        if inlines.textChunks(softBreakMode: mode).count > 1 {
+        if self.directBlocks {
+          if inlines.hasMultipleTextChunks(softBreakMode: mode) {
+            return false
+          }
+        } else if inlines.textChunks(softBreakMode: mode).count > 1 {
           return false
         }
       }
@@ -173,12 +178,25 @@ private struct TableContentView: View {
     useCompactCells: Bool
   ) -> some View {
     if useCompactCells, let cellStyle = self.tableCellStyle {
-      let bodyCache = PrecomputedInlineAttributes(
-        attributes: self.textStyleAttributes,
-        inlineStyles: self.inlineStyles
-      )
+      let bodyCache =
+        self.directBlocks
+        ? InlineAttributesCache.lookup(
+          attributes: self.textStyleAttributes,
+          inlineStyles: self.inlineStyles
+        )
+        : PrecomputedInlineAttributes(
+          attributes: self.textStyleAttributes,
+          inlineStyles: self.inlineStyles
+        )
       let headerCache: PrecomputedInlineAttributes = {
         guard let weight = cellStyle.headerFontWeight else { return bodyCache }
+        if self.directBlocks {
+          return InlineAttributesCache.lookup(
+            attributes: self.textStyleAttributes,
+            inlineStyles: self.inlineStyles,
+            overrideWeight: weight
+          )
+        }
         return PrecomputedInlineAttributes(
           attributes: FontWeight(weight).mergingAttributes(self.textStyleAttributes),
           inlineStyles: self.inlineStyles
@@ -186,7 +204,30 @@ private struct TableContentView: View {
       }()
       let alignments = self.columnAlignments.map(TextAlignment.init)
       let allLeading = alignments.allSatisfy { $0 == .leading }
-      if allLeading {
+      if self.directBlocks {
+        if allLeading {
+          StaticViewBatch(count: self.rowCount * self.columnCount) { index in
+            let row = index / self.columnCount
+            let column = index % self.columnCount
+            self.rows[row].cells[column].content.renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: row == 0 ? headerCache : bodyCache
+            )
+          }
+        } else {
+          StaticViewBatch(count: self.rowCount * self.columnCount) { index in
+            let row = index / self.columnCount
+            let column = index % self.columnCount
+            self.rows[row].cells[column].content.renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: row == 0 ? headerCache : bodyCache
+            )
+            .multilineTextAlignment(alignments[column])
+          }
+        }
+      } else if allLeading {
         ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
           let row = index / self.columnCount
           let column = index % self.columnCount

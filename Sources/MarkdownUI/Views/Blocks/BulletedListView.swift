@@ -52,10 +52,10 @@ struct BulletedListView: View {
   }
 
   /// Extracts inline arrays when every list item is a single non-image paragraph.
-  private var simpleParagraphItems: [[InlineNode]]? {
+  static func extractSimpleParagraphItems(_ items: [RawListItem]) -> [[InlineNode]]? {
     var result: [[InlineNode]] = []
-    result.reserveCapacity(self.items.count)
-    for item in self.items {
+    result.reserveCapacity(items.count)
+    for item in items {
       guard item.children.count == 1,
         case .paragraph(let inlines) = item.children[0],
         !inlines.contains(where: \.containsImage)
@@ -65,6 +65,10 @@ struct BulletedListView: View {
       result.append(inlines)
     }
     return result
+  }
+
+  private var simpleParagraphItems: [[InlineNode]]? {
+    Self.extractSimpleParagraphItems(self.items)
   }
 
   private var label: some View {
@@ -79,7 +83,7 @@ struct BulletedListView: View {
 }
 
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
-private struct CompactBulletedListView: View {
+struct CompactBulletedListView: View {
   @Environment(\.textStyleAttributes) private var textStyleAttributes
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.baseURL) private var baseURL
@@ -87,6 +91,7 @@ private struct CompactBulletedListView: View {
   @Environment(\.lineSpacing) private var environmentLineSpacing
   @Environment(\.multilineTextAlignment) private var textAlignment
   @Environment(\.displayScale) private var displayScale
+  @Environment(\.directBlocks) private var directBlocks
 
   let paragraphs: [[InlineNode]]
   let isTight: Bool
@@ -107,10 +112,16 @@ private struct CompactBulletedListView: View {
         effectiveItemMargin.top,
         self.isTight ? 0 : effectiveItemMargin.bottom
       ) ?? 0
-    let cache = PrecomputedInlineAttributes(
-      attributes: self.textStyleAttributes,
-      inlineStyles: self.inlineStyles
-    )
+    let cache =
+      self.directBlocks
+      ? InlineAttributesCache.lookup(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
+      : PrecomputedInlineAttributes(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
     let probeKey = BulletProbeKey(
       symbolVariant: Self.symbolVariant(for: self.builtinMarker, listLevel: self.nextListLevel),
       fontSize: fontSize,
@@ -120,19 +131,15 @@ private struct CompactBulletedListView: View {
       displayScale: self.displayScale
     )
     let cachedProbe = BulletProbeMetricsCache.lookup(probeKey)
-    let itemChunks = self.paragraphs.map { $0.textChunks(softBreakMode: self.softBreakMode) }
-    let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
 
-    let listBody = self.makeListLayout(
+    let listBody = self.makeListBody(
       bulletImage: bulletImage,
       bulletFont: bulletFont,
       minBulletWidth: minBulletWidth,
       itemSpacing: itemSpacing,
       cache: cache,
       probeKey: probeKey,
-      cachedProbe: cachedProbe,
-      itemChunks: itemChunks,
-      allSingleChunk: allSingleChunk
+      cachedProbe: cachedProbe
     )
 
     if let paragraphLineSpacing = self.paragraphLineSpacing {
@@ -161,6 +168,78 @@ private struct CompactBulletedListView: View {
       case 2: return 1
       default: return 2
       }
+    }
+  }
+
+  @ViewBuilder private func makeListBody(
+    bulletImage: Image,
+    bulletFont: Font,
+    minBulletWidth: CGFloat,
+    itemSpacing: CGFloat,
+    cache: PrecomputedInlineAttributes,
+    probeKey: BulletProbeKey,
+    cachedProbe: BulletProbeMetrics?
+  ) -> some View {
+    if self.directBlocks,
+      !self.paragraphs.contains(where: { $0.hasMultipleTextChunks(softBreakMode: self.softBreakMode) })
+    {
+      if let cachedProbe {
+        BulletedListLayout(
+          minBulletWidth: minBulletWidth,
+          itemSpacing: itemSpacing,
+          probeKey: probeKey,
+          cachedProbe: cachedProbe,
+          hasLeadingProbeSubview: false
+        ) {
+          StaticViewBatch(count: self.paragraphs.count) { index in
+            bulletImage.font(bulletFont)
+            self.paragraphs[index].renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: cache
+            )
+          }
+        }
+      } else {
+        BulletedListLayout(
+          minBulletWidth: minBulletWidth,
+          itemSpacing: itemSpacing,
+          probeKey: probeKey,
+          cachedProbe: nil,
+          hasLeadingProbeSubview: true
+        ) {
+          Label {
+            cache.directBase.makeText("A")
+          } icon: {
+            bulletImage
+              .font(bulletFont)
+              .frame(minWidth: minBulletWidth, minHeight: 100, alignment: .topTrailing)
+          }
+          .hidden()
+          StaticViewBatch(count: self.paragraphs.count) { index in
+            bulletImage.font(bulletFont)
+            self.paragraphs[index].renderCompactText(
+              baseURL: self.baseURL,
+              softBreakMode: self.softBreakMode,
+              cache: cache
+            )
+          }
+        }
+      }
+    } else {
+      let itemChunks = self.paragraphs.map { $0.textChunks(softBreakMode: self.softBreakMode) }
+      let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
+      self.makeListLayout(
+        bulletImage: bulletImage,
+        bulletFont: bulletFont,
+        minBulletWidth: minBulletWidth,
+        itemSpacing: itemSpacing,
+        cache: cache,
+        probeKey: probeKey,
+        cachedProbe: cachedProbe,
+        itemChunks: itemChunks,
+        allSingleChunk: allSingleChunk
+      )
     }
   }
 

@@ -191,6 +191,7 @@ import SwiftUI
 public struct Markdown: View {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.theme) private var theme
+  @Environment(\.directBlocks) private var directBlocks
 
   private let content: MarkdownContent
   private let baseURL: URL?
@@ -223,7 +224,10 @@ public struct Markdown: View {
   }
 
   private var blocks: [BlockNode] {
-    self.content.blocks.filterImagesMatching(colorScheme: self.colorScheme)
+    if self.directBlocks, !self.content.hasImages {
+      return self.content.blocks
+    }
+    return self.content.blocks.filterImagesMatching(colorScheme: self.colorScheme)
   }
 }
 

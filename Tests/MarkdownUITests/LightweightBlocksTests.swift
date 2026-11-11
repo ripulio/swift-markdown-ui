@@ -59,6 +59,40 @@ final class LightweightBlocksTests: XCTestCase {
           "Paragraph \($0) checks multi-paragraph stacks with **bold**, *italic*, `code`, and [link](https://example.com)."
         }.joined(separator: "\n\n")
       ),
+      (
+        "headings_and_paragraphs_prose_run",
+        """
+        ## Overview
+
+        Paragraph one introduces the **direct prose run** with `inline code` and [link](https://example.com).
+
+        Paragraph two continues without intermediate list or table containers so consecutive prose blocks stay flat.
+
+        ### Follow-up notes
+
+        Paragraph three verifies mixed heading levels and *italic* runs at exact line spacing.
+        """
+      ),
+      (
+        "structured_reply_mixed",
+        """
+        ## What changed
+
+        Markdown rows in long chats paid a layout tax for each block, list item and table cell, even when the row held plain prose.
+
+        \(bullets16)
+
+        ---
+
+        \(table15x3)
+
+        ```swift
+        let measured = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
+        ```
+
+        The heights and pixel snapshots match across all corpus widths.
+        """
+      ),
     ]
   }
 
@@ -135,6 +169,82 @@ final class LightweightBlocksTests: XCTestCase {
           "Compact pixel mismatch for \(sample.name) width=\(width)"
         )
       }
+    }
+  }
+
+  @MainActor
+  func testDirectBlocksMatchSettledHeightsAndRenderedPixelsAcrossCorpus() {
+    for width in [CGFloat(300), CGFloat(400)] {
+      for sample in self.corpus {
+        let baseline = self.render(
+          sample.markdown,
+          width: width,
+          lightweight: false,
+          compact: false,
+          direct: false
+        )
+        let direct = self.render(
+          sample.markdown,
+          width: width,
+          lightweight: true,
+          compact: true,
+          direct: true
+        )
+
+        XCTAssertEqual(
+          direct.firstPassHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "Direct first-pass height mismatch for \(sample.name) width=\(width)"
+        )
+        XCTAssertEqual(
+          direct.settledHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "Direct settled height mismatch for \(sample.name) width=\(width)"
+        )
+        XCTAssertNotNil(baseline.tiffData)
+        XCTAssertEqual(
+          direct.tiffData,
+          baseline.tiffData,
+          "Direct pixel mismatch for \(sample.name) width=\(width)"
+        )
+      }
+    }
+  }
+
+  @MainActor
+  func testDirectBlocksMatchTextAlignmentModes() {
+    let markdown = """
+      ## Centered or trailing
+
+      Short line.
+
+      Longer paragraph with **bold** and `code` that wraps across more than one line at narrow width.
+      """
+    for alignment in [TextAlignment.center, TextAlignment.trailing] {
+      let baseline = self.runHost(
+        Markdown(markdown)
+          .markdownTheme(self.makeTheme(lightweight: false, direct: false))
+          .markdownBlockMargins(self.chatMargins)
+          .multilineTextAlignment(alignment)
+          .frame(width: 280, alignment: .leading),
+        width: 280
+      )
+      let direct = self.runHost(
+        Markdown(markdown)
+          .markdownTheme(self.makeTheme(lightweight: true, direct: true))
+          .markdownBlockMargins(self.chatMargins)
+          .markdownLightweightListMarkers(true)
+          .markdownLightweightBlocks(true)
+          .markdownCompactLayout(true)
+          .markdownDirectBlocks(true)
+          .multilineTextAlignment(alignment)
+          .frame(width: 280, alignment: .leading),
+        width: 280
+      )
+      XCTAssertEqual(direct.settledHeight, baseline.settledHeight, accuracy: 0.5)
+      XCTAssertEqual(direct.tiffData, baseline.tiffData)
     }
   }
 
@@ -228,20 +338,22 @@ final class LightweightBlocksTests: XCTestCase {
     _ markdown: String,
     width: CGFloat,
     lightweight: Bool,
-    compact: Bool = false
+    compact: Bool = false,
+    direct: Bool = false
   ) -> Snapshot {
     let view = Markdown(markdown)
-      .markdownTheme(self.makeTheme(lightweight: lightweight))
+      .markdownTheme(self.makeTheme(lightweight: lightweight, direct: direct))
       .markdownBlockMargins(self.chatMargins)
       .markdownLightweightListMarkers(lightweight)
       .markdownLightweightBlocks(lightweight)
       .markdownCompactLayout(compact)
+      .markdownDirectBlocks(direct)
       .markdownSoftBreakMode(.lineBreak)
       .frame(width: width, alignment: .leading)
     return self.runHost(view, width: width)
   }
 
-  private func makeTheme(lightweight: Bool) -> Theme {
+  private func makeTheme(lightweight: Bool, direct: Bool = false) -> Theme {
     let borderColor = Color.primary.opacity(0.18)
     let base = Theme.basic
       .text {
@@ -257,14 +369,6 @@ final class LightweightBlocksTests: XCTestCase {
         FontFamilyVariant(.monospaced)
         FontSize(.em(0.88))
         BackgroundColor(Color.primary.opacity(0.08))
-      }
-      .heading2 { configuration in
-        configuration.label
-          .markdownTextStyle {
-            FontWeight(.semibold)
-            FontSize(.em(1.1))
-          }
-          .relativeLineSpacing(.em(0.15))
       }
       .blockquote { configuration in
         configuration.label
@@ -293,10 +397,31 @@ final class LightweightBlocksTests: XCTestCase {
         )
       }
 
+    let withHeadings: Theme =
+      direct
+      ? base.headings(fontWeight: .semibold, fontSize: .em(1.1), lineSpacing: .em(0.15))
+      : base
+        .heading2 { configuration in
+          configuration.label
+            .markdownTextStyle {
+              FontWeight(.semibold)
+              FontSize(.em(1.1))
+            }
+            .relativeLineSpacing(.em(0.15))
+        }
+        .heading3 { configuration in
+          configuration.label
+            .markdownTextStyle {
+              FontWeight(.semibold)
+              FontSize(.em(1.1))
+            }
+            .relativeLineSpacing(.em(0.15))
+        }
+
     if lightweight {
-      return base.paragraph(lineSpacing: .em(0.2))
+      return withHeadings.paragraph(lineSpacing: .em(0.2))
     } else {
-      return base.paragraph { configuration in
+      return withHeadings.paragraph { configuration in
         configuration.label
           .fixedSize(horizontal: false, vertical: true)
           .relativeLineSpacing(.em(0.2))

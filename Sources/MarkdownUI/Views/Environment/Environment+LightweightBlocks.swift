@@ -16,6 +16,15 @@ extension View {
   public func markdownCompactLayout(_ enabled: Bool = true) -> some View {
     self.environment(\.compactLayout, enabled)
   }
+
+  /// Enables Pass 7 direct block sequences, coalesced prose runs (headings and paragraphs),
+  /// shared inline-attribute caching, and static tuple view batching when
+  /// ``View/markdownCompactLayout(_:)`` is active.
+  ///
+  /// The default is `false`, keeping Pass 6's hierarchy untouched until switched on.
+  public func markdownDirectBlocks(_ enabled: Bool = true) -> some View {
+    self.environment(\.directBlocks, enabled)
+  }
 }
 
 extension EnvironmentValues {
@@ -28,6 +37,11 @@ extension EnvironmentValues {
     get { self[CompactLayoutKey.self] }
     set { self[CompactLayoutKey.self] = newValue }
   }
+
+  var directBlocks: Bool {
+    get { self[DirectBlocksKey.self] }
+    set { self[DirectBlocksKey.self] = newValue }
+  }
 }
 
 private struct LightweightBlocksKey: EnvironmentKey {
@@ -35,5 +49,9 @@ private struct LightweightBlocksKey: EnvironmentKey {
 }
 
 private struct CompactLayoutKey: EnvironmentKey {
+  static let defaultValue = false
+}
+
+private struct DirectBlocksKey: EnvironmentKey {
   static let defaultValue = false
 }

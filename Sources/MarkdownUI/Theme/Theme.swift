@@ -354,6 +354,22 @@ extension Theme {
     return theme
   }
 
+  /// Sets all six heading levels to a declarative heading style.
+  public func headings(
+    fontWeight: Font.Weight? = nil,
+    fontSize: RelativeSize? = nil,
+    lineSpacing: RelativeSize? = nil
+  ) -> Theme {
+    var theme = self
+    let style = BlockStyle<BlockConfiguration>.heading(
+      fontWeight: fontWeight,
+      fontSize: fontSize,
+      lineSpacing: lineSpacing
+    )
+    theme.headings = Array(repeating: style, count: 6)
+    return theme
+  }
+
   /// Adds a paragraph style to the theme.
   /// - Parameter body: A view builder that returns a customized paragraph.
   public func paragraph<Body: View>(
