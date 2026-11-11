@@ -379,6 +379,99 @@
         XCTAssertEqual(afterSecondLayout.measureCalls, afterFirstLayout.measureCalls)
       }
     }
+
+    @MainActor
+    func testDirectBlockSequencePropagatesChildStateHeightChangeAtSameWidth() {
+      let markdown = """
+      Introductory paragraph before a stateful block.
+
+      | Column A | Column B |
+      |---|---|
+      | Cell one | Cell two |
+
+      Closing paragraph after the stateful block.
+      """
+
+      var triggerShrink: (() -> Void)?
+      let theme = self.makeTheme().table { configuration in
+        StatefulTableWrapperView(
+          configuration: configuration,
+          registerTrigger: { triggerShrink = $0 }
+        )
+      }
+
+      var observedHeight: CGFloat = 0
+      let root = Markdown(MarkdownContent(markdown))
+        .markdownTheme(theme)
+        .markdownBlockMargins(self.chatMargins)
+        .markdownLightweightListMarkers(true)
+        .markdownLightweightBlocks(true)
+        .markdownCompactLayout(true)
+        .markdownDirectBlocks(true)
+        .markdownSoftBreakMode(.lineBreak)
+        .background(
+          GeometryReader { geo in
+            Color.clear
+              .onAppear { observedHeight = geo.size.height }
+              .onChange(of: geo.size.height) { newHeight in observedHeight = newHeight }
+          }
+        )
+        .frame(width: 360)
+
+      #if canImport(UIKit)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 900))
+        let host = UIHostingController(rootView: VStack(spacing: 0) { root; Spacer(minLength: 0) })
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        window.layoutIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        let initialHeight = observedHeight
+        XCTAssertNotNil(triggerShrink)
+        triggerShrink?()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
+        window.layoutIfNeeded()
+        let settledHeight = observedHeight
+      #elseif canImport(AppKit)
+        let window = NSWindow(
+          contentRect: NSRect(x: 0, y: 0, width: 400, height: 900),
+          styleMask: [.borderless],
+          backing: .buffered,
+          defer: false
+        )
+        let host = NSHostingView(rootView: VStack(spacing: 0) { root; Spacer(minLength: 0) })
+        host.frame = NSRect(x: 0, y: 0, width: 400, height: 900)
+        window.contentView = host
+        defer { window.contentView = nil }
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        let initialHeight = observedHeight
+        XCTAssertNotNil(triggerShrink)
+        triggerShrink?()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
+        host.layoutSubtreeIfNeeded()
+        let settledHeight = observedHeight
+      #endif
+
+      XCTAssertEqual(initialHeight - settledHeight, 120, accuracy: 1.0)
+    }
+  }
+
+  @available(iOS 16.0, macOS 13.0, *)
+  private struct StatefulTableWrapperView: View {
+    let configuration: BlockConfiguration
+    let registerTrigger: (@escaping () -> Void) -> Void
+    @State private var extraHeight: CGFloat = 120
+
+    var body: some View {
+      configuration.label
+        .padding(.bottom, self.extraHeight)
+        .onAppear {
+          self.registerTrigger {
+            self.extraHeight = 0
+          }
+        }
+    }
   }
 
   @available(iOS 16.0, macOS 13.0, *)

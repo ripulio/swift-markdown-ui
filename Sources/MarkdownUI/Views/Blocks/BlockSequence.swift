@@ -413,7 +413,12 @@ private struct ParagraphStackLayout: Layout {
   }
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
-    self.resolve(proposalWidth: proposal.width, subviews: subviews, cache: &cache)
+    self.resolve(
+      proposalWidth: proposal.width,
+      subviews: subviews,
+      cache: &cache,
+      forceMeasure: true
+    )
     return cache.size
   }
 
@@ -423,12 +428,12 @@ private struct ParagraphStackLayout: Layout {
     subviews: Subviews,
     cache: inout Cache
   ) {
-    if cache.key?.subviewCount != subviews.count
-      || abs(cache.size.width - bounds.width) >= 0.01
-      || abs(cache.size.height - bounds.height) >= 0.01
-    {
-      self.resolve(proposalWidth: proposal.width ?? bounds.width, subviews: subviews, cache: &cache)
-    }
+    self.resolve(
+      proposalWidth: proposal.width ?? bounds.width,
+      subviews: subviews,
+      cache: &cache,
+      forceMeasure: abs(cache.size.height - bounds.height) >= 0.01
+    )
     let proposalWidth = cache.key?.availableWidth
     var y = bounds.minY
     for (index, subview) in subviews.enumerated() {
@@ -458,7 +463,12 @@ private struct ParagraphStackLayout: Layout {
     }
   }
 
-  private func resolve(proposalWidth: CGFloat?, subviews: Subviews, cache: inout Cache) {
+  private func resolve(
+    proposalWidth: CGFloat?,
+    subviews: Subviews,
+    cache: inout Cache,
+    forceMeasure: Bool
+  ) {
     let normalizedWidth: CGFloat? =
       if let w = proposalWidth, w.isFinite { w } else { nil }
     let key = CacheKey(
@@ -467,7 +477,7 @@ private struct ParagraphStackLayout: Layout {
       spacing: self.spacing,
       alignment: self.alignment
     )
-    if cache.key == key {
+    if !forceMeasure, cache.key == key {
       return
     }
     guard !subviews.isEmpty else {
@@ -834,7 +844,12 @@ private struct BlockSpacedStackLayout: Layout {
   }
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
-    self.resolve(proposalWidth: proposal.width, subviews: subviews, cache: &cache)
+    self.resolve(
+      proposalWidth: proposal.width,
+      subviews: subviews,
+      cache: &cache,
+      forceMeasure: true
+    )
     return cache.size
   }
 
@@ -844,12 +859,12 @@ private struct BlockSpacedStackLayout: Layout {
     subviews: Subviews,
     cache: inout Cache
   ) {
-    if cache.key?.subviewCount != subviews.count
-      || abs(cache.size.width - bounds.width) >= 0.01
-      || abs(cache.size.height - bounds.height) >= 0.01
-    {
-      self.resolve(proposalWidth: proposal.width ?? bounds.width, subviews: subviews, cache: &cache)
-    }
+    self.resolve(
+      proposalWidth: proposal.width ?? bounds.width,
+      subviews: subviews,
+      cache: &cache,
+      forceMeasure: abs(cache.size.height - bounds.height) >= 0.01
+    )
     let proposalWidth = cache.key?.availableWidth
     var y = bounds.minY
     for (index, subview) in subviews.enumerated() {
@@ -882,7 +897,12 @@ private struct BlockSpacedStackLayout: Layout {
     }
   }
 
-  private func resolve(proposalWidth: CGFloat?, subviews: Subviews, cache: inout Cache) {
+  private func resolve(
+    proposalWidth: CGFloat?,
+    subviews: Subviews,
+    cache: inout Cache,
+    forceMeasure: Bool
+  ) {
     let normalizedWidth: CGFloat? =
       if let w = proposalWidth, w.isFinite { w } else { nil }
     let key = CacheKey(
@@ -891,7 +911,7 @@ private struct BlockSpacedStackLayout: Layout {
       topSpacings: self.topSpacings,
       alignment: self.alignment
     )
-    if cache.key == key {
+    if !forceMeasure, cache.key == key {
       return
     }
     guard !subviews.isEmpty else {
