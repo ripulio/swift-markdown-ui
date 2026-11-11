@@ -36,6 +36,79 @@ enum BulletProbeMetricsCache {
     self.storage[key] = metrics
     self.lock.unlock()
   }
+
+  static func removeAll() {
+    self.lock.lock()
+    self.storage.removeAll()
+    self.lock.unlock()
+  }
+}
+
+@_spi(Testing)
+public enum _BulletedListLayoutDebug {
+  public struct Snapshot: Equatable {
+    public var sizeThatFitsCalls: Int = 0
+    public var measureCalls: Int = 0
+    public var probeStoreCalls: Int = 0
+    public var placeSubviewsCalls: Int = 0
+    public init() {}
+  }
+
+  private static let lock = NSLock()
+  public private(set) static var isEnabled = false
+  private static var counts = Snapshot()
+
+  public static func reset(clearProbeCache: Bool = false, enabled: Bool = true) {
+    if clearProbeCache {
+      BulletProbeMetricsCache.removeAll()
+    }
+    self.lock.lock()
+    self.counts = Snapshot()
+    self.isEnabled = enabled
+    self.lock.unlock()
+  }
+
+  public static func stop() -> Snapshot {
+    self.lock.lock()
+    let result = self.counts
+    self.isEnabled = false
+    self.lock.unlock()
+    return result
+  }
+
+  public static func snapshot() -> Snapshot {
+    self.lock.lock()
+    defer { self.lock.unlock() }
+    return self.counts
+  }
+
+  static func recordSizeThatFits() {
+    guard self.isEnabled else { return }
+    self.lock.lock()
+    self.counts.sizeThatFitsCalls += 1
+    self.lock.unlock()
+  }
+
+  static func recordMeasure() {
+    guard self.isEnabled else { return }
+    self.lock.lock()
+    self.counts.measureCalls += 1
+    self.lock.unlock()
+  }
+
+  static func recordProbeStore() {
+    guard self.isEnabled else { return }
+    self.lock.lock()
+    self.counts.probeStoreCalls += 1
+    self.lock.unlock()
+  }
+
+  static func recordPlaceSubviews() {
+    guard self.isEnabled else { return }
+    self.lock.lock()
+    self.counts.placeSubviewsCalls += 1
+    self.lock.unlock()
+  }
 }
 
 /// Places `[bullet_0, item_0, bullet_1, item_1, ...]` pairs directly in a single pass,
@@ -49,9 +122,30 @@ struct BulletedListLayout: Layout {
   var cachedProbe: BulletProbeMetrics? = nil
   var hasLeadingProbeSubview: Bool = true
 
+  struct CacheEntry {
+    let key: CacheKey
+    let metrics: Metrics
+  }
+
   struct Cache {
-    var key: CacheKey?
-    var metrics: Metrics?
+    var entries: [CacheEntry] = []
+    var probeKey: BulletProbeKey?
+    var probe: BulletProbeMetrics?
+
+    func lookup(_ key: CacheKey) -> Metrics? {
+      self.entries.first(where: { $0.key == key })?.metrics
+    }
+
+    mutating func insert(_ metrics: Metrics, for key: CacheKey) {
+      if let existingIndex = self.entries.firstIndex(where: { $0.key == key }) {
+        self.entries[existingIndex] = CacheEntry(key: key, metrics: metrics)
+        return
+      }
+      if self.entries.count >= 6 {
+        self.entries.removeFirst()
+      }
+      self.entries.append(CacheEntry(key: key, metrics: metrics))
+    }
   }
 
   struct CacheKey: Equatable {
@@ -78,11 +172,14 @@ struct BulletedListLayout: Layout {
   }
 
   func makeCache(subviews: Subviews) -> Cache {
-    Cache()
+    Cache(probeKey: self.probeKey, probe: self.cachedProbe)
   }
 
   func updateCache(_ cache: inout Cache, subviews: Subviews) {
-    cache = Cache()
+    let preservedProbe = (cache.probeKey == self.probeKey) ? (self.cachedProbe ?? cache.probe) : self.cachedProbe
+    cache.entries.removeAll(keepingCapacity: true)
+    cache.probeKey = self.probeKey
+    cache.probe = preservedProbe
   }
 
   func explicitAlignment(
@@ -106,7 +203,8 @@ struct BulletedListLayout: Layout {
   }
 
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
-    self.resolveMetrics(proposalWidth: proposal.width, subviews: subviews, cache: &cache).size
+    _BulletedListLayoutDebug.recordSizeThatFits()
+    return self.resolveMetrics(proposalWidth: proposal.width, subviews: subviews, cache: &cache).size
   }
 
   func placeSubviews(
@@ -115,14 +213,15 @@ struct BulletedListLayout: Layout {
     subviews: Subviews,
     cache: inout Cache
   ) {
+    _BulletedListLayoutDebug.recordPlaceSubviews()
     let metrics: Metrics
-    if let cached = cache.metrics,
-      cache.key?.subviewCount == subviews.count,
-      cache.key?.hasLeadingProbeSubview == self.hasLeadingProbeSubview,
-      abs(cached.size.width - bounds.width) < 0.01,
-      abs(cached.size.height - bounds.height) < 0.01
-    {
-      metrics = cached
+    if let matched = cache.entries.last(where: { entry in
+      entry.key.subviewCount == subviews.count
+        && entry.key.hasLeadingProbeSubview == self.hasLeadingProbeSubview
+        && abs(entry.metrics.size.width - bounds.width) < 0.01
+        && abs(entry.metrics.size.height - bounds.height) < 0.01
+    })?.metrics {
+      metrics = matched
     } else {
       metrics = self.resolveMetrics(
         proposalWidth: proposal.width ?? bounds.width,
@@ -177,16 +276,20 @@ struct BulletedListLayout: Layout {
       itemSpacing: self.itemSpacing,
       hasLeadingProbeSubview: self.hasLeadingProbeSubview
     )
-    if cache.key == key, let cached = cache.metrics {
+    if let cached = cache.lookup(key) {
       return cached
     }
-    let computed = self.measure(availableWidth: normalizedWidth, subviews: subviews)
-    cache.key = key
-    cache.metrics = computed
+    let computed = self.measure(availableWidth: normalizedWidth, subviews: subviews, cache: &cache)
+    cache.insert(computed, for: key)
     return computed
   }
 
-  private func measure(availableWidth: CGFloat?, subviews: Subviews) -> Metrics {
+  private func measure(
+    availableWidth: CGFloat?,
+    subviews: Subviews,
+    cache: inout Cache
+  ) -> Metrics {
+    _BulletedListLayoutDebug.recordMeasure()
     let baseOffset = self.hasLeadingProbeSubview ? 1 : 0
     let itemCount = (subviews.count - baseOffset) / 2
     guard itemCount > 0 else {
@@ -201,7 +304,13 @@ struct BulletedListLayout: Layout {
     }
 
     let probe: BulletProbeMetrics
-    if let cachedProbe = self.cachedProbe, !self.hasLeadingProbeSubview {
+    if let cachedProbe = self.cachedProbe {
+      probe = cachedProbe
+    } else if cache.probeKey == self.probeKey, let cachedProbe = cache.probe {
+      probe = cachedProbe
+    } else if let probeKey = self.probeKey, let cachedProbe = BulletProbeMetricsCache.lookup(probeKey) {
+      cache.probeKey = probeKey
+      cache.probe = cachedProbe
       probe = cachedProbe
     } else {
       let prototypeHeight: CGFloat = 100
@@ -223,7 +332,10 @@ struct BulletedListLayout: Layout {
         bulletSlotWidth: bulletSlotWidth,
         iconToItemSpacing: iconToItemSpacing
       )
+      cache.probeKey = self.probeKey
+      cache.probe = measured
       if let probeKey = self.probeKey {
+        _BulletedListLayoutDebug.recordProbeStore()
         BulletProbeMetricsCache.store(measured, for: probeKey)
       }
       probe = measured

@@ -116,8 +116,11 @@ plus Ripul's 35-snapshot UIKit cross-revision SHA-256 check against `c6d0fcc`).
     modifiers and balanced binary concatenation, retaining `AttributedString`
     only for spans with background colour, links, underlines or strikethrough).
   - Caches `BulletedListLayout`'s `Label` cap-centre bullet probe metrics across
-    lists (`BulletProbeMetricsCache`) so warm lists omit the hidden `Label`
-    subview and icon/spacing queries.
+    lists (`BulletProbeMetricsCache`), checks `BulletProbeMetricsCache.lookup`
+    and `BulletedListLayout.Cache.probe` inside `measure` so cold-mounted lists
+    never re-measure the hidden `Label` subview or re-store probe metrics across
+    layout passes, and keeps a 6-slot width cache in `BulletedListLayout.Cache`
+    so multi-width parent layouts do not thrash single-width cached metrics.
   - Removes `_ConditionalContent` (`DynamicViewList`) wrappers from single-chunk
     list and paragraph `ForEach` loops.
 - **Pass 7 (`f53b0d5`) — `markdownDirectBlocks()`:**
