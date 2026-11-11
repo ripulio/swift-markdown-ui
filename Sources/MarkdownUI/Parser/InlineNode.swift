@@ -49,4 +49,16 @@ extension InlineNode {
       }
     }
   }
+
+  var containsImage: Bool {
+    switch self {
+    case .image:
+      return true
+    case .emphasis(let children), .strong(let children),
+      .strikethrough(let children), .link(_, let children):
+      return children.contains(where: \.containsImage)
+    case .text, .softBreak, .lineBreak, .code, .html:
+      return false
+    }
+  }
 }

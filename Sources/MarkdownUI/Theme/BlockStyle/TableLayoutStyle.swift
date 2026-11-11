@@ -17,6 +17,37 @@ public enum TableLayoutStyle {
     overflow: Overflow = .natural
   )
 
+  /// Internal backing case for closure-driven adaptive layout.
+  case adaptiveDynamic(DynamicAdaptiveConfiguration)
+
+  /// Fit columns to a scroll viewport whose width is supplied lazily during layout
+  /// (such as from an enclosing `Layout` proposal), avoiding a second `@State` pass.
+  public static func adaptive(
+    availableWidth: @escaping () -> CGFloat,
+    minimumColumnWidth: CGFloat,
+    maximumColumnWidth: CGFloat,
+    overflow: Overflow = .natural,
+    onMeasureWidth: ((CGFloat) -> Void)? = nil
+  ) -> TableLayoutStyle {
+    .adaptiveDynamic(
+      DynamicAdaptiveConfiguration(
+        availableWidth: availableWidth,
+        minimumColumnWidth: minimumColumnWidth,
+        maximumColumnWidth: maximumColumnWidth,
+        overflow: overflow,
+        onMeasureWidth: onMeasureWidth
+      )
+    )
+  }
+
+  public struct DynamicAdaptiveConfiguration {
+    let availableWidth: () -> CGFloat
+    public let minimumColumnWidth: CGFloat
+    public let maximumColumnWidth: CGFloat
+    public let overflow: Overflow
+    let onMeasureWidth: ((CGFloat) -> Void)?
+  }
+
   /// Column widths when the readable minimums exceed the available width.
   public enum Overflow {
     /// Retain natural widths, up to the configured maximum.

@@ -103,6 +103,190 @@ final class AdaptiveTableTests: XCTestCase {
   }
 
   @MainActor
+  func testLayoutDrivenAdaptiveWidthMatchesStaticAdaptiveFramesAndPixelsOnFirstPass() {
+    let sources: [(name: String, text: String, overflow: TableLayoutStyle.Overflow)] = [
+      (
+        "compact_15x3",
+        "| Part | Before | After |\n|---|---|---|\n"
+          + (1...14).map { "| Layout part \($0) | \($0 * 3).2 ms | \($0).1 ms |" }.joined(separator: "\n"),
+        .minimum
+      ),
+      (
+        "wrapping_prose",
+        """
+        | Description | Count | Notes |
+        | :--- | ---: | :--- |
+        | A longer explanation that wraps across several lines when fitted to phone width. | 42 | Keep numeric column compact while prose wraps. |
+        | Short | 123 | Done |
+        """,
+        .minimum
+      ),
+      (
+        "wide_scroll",
+        """
+        | Col 1 | Col 2 | Col 3 | Col 4 | Col 5 |
+        | --- | --- | --- | --- | --- |
+        | Longer first cell | Longer second cell | Longer third cell | Longer fourth cell | Longer fifth cell |
+        """,
+        .minimum
+      ),
+    ]
+
+    for width in [CGFloat(280), CGFloat(400)] {
+      for sample in sources {
+        let baseline = self.renderComparison(
+          source: sample.text,
+          width: width,
+          overflow: sample.overflow,
+          dynamicProvider: false
+        )
+        let candidate = self.renderComparison(
+          source: sample.text,
+          width: width,
+          overflow: sample.overflow,
+          dynamicProvider: true
+        )
+
+        XCTAssertEqual(
+          candidate.firstPassHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "First-pass height mismatch for \(sample.name) width=\(width)"
+        )
+        XCTAssertEqual(
+          candidate.settledHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "Settled height mismatch for \(sample.name) width=\(width)"
+        )
+        XCTAssertGreaterThan(candidate.measuredContentWidth, 0)
+        XCTAssertEqual(candidate.cells.count, baseline.cells.count)
+        for (key, expected) in baseline.cells {
+          guard let actual = candidate.cells[key] else {
+            XCTFail("Missing cell \(key)")
+            continue
+          }
+          XCTAssertEqual(actual.minX, expected.minX, accuracy: 0.5, "\(sample.name) \(key) minX")
+          XCTAssertEqual(actual.minY, expected.minY, accuracy: 0.5, "\(sample.name) \(key) minY")
+          XCTAssertEqual(actual.width, expected.width, accuracy: 0.5, "\(sample.name) \(key) width")
+          XCTAssertEqual(actual.height, expected.height, accuracy: 0.5, "\(sample.name) \(key) height")
+        }
+        XCTAssertEqual(
+          candidate.tiffData,
+          baseline.tiffData,
+          "Pixel mismatch for \(sample.name) width=\(width)"
+        )
+      }
+    }
+  }
+
+  private struct ComparisonSnapshot {
+    let firstPassHeight: CGFloat
+    let settledHeight: CGFloat
+    let measuredContentWidth: CGFloat
+    let cells: [String: CGRect]
+    let tiffData: Data?
+  }
+
+  @MainActor
+  private func renderComparison(
+    source: String,
+    width: CGFloat,
+    overflow: TableLayoutStyle.Overflow,
+    dynamicProvider: Bool
+  ) -> ComparisonSnapshot {
+    let recorder = Recorder()
+    let viewport = ViewportProbe()
+    let view = Markdown(source)
+      .markdownTextStyle { FontSize(14.5) }
+      .markdownBlockStyle(\.table) { configuration in
+        if dynamicProvider {
+          ProposalCaptureLayout(viewport: viewport) {
+            ScrollView(.horizontal) {
+              configuration.label
+                .markdownTableLayout(
+                  .adaptive(
+                    availableWidth: { viewport.proposedWidth * 1.5 },
+                    minimumColumnWidth: 80,
+                    maximumColumnWidth: 400,
+                    overflow: overflow,
+                    onMeasureWidth: { viewport.measuredContentWidth = $0 }
+                  )
+                )
+                .markdownTableBorderStyle(.init(color: .gray))
+                .coordinateSpace(name: "table")
+            }
+          }
+        } else {
+          ScrollView(.horizontal) {
+            configuration.label
+              .markdownTableLayout(
+                .adaptive(
+                  availableWidth: width * 1.5,
+                  minimumColumnWidth: 80,
+                  maximumColumnWidth: 400,
+                  overflow: overflow
+                )
+              )
+              .markdownTableBorderStyle(.init(color: .gray))
+              .coordinateSpace(name: "table")
+          }
+        }
+      }
+      .markdownBlockStyle(\.tableCell) { configuration in
+        let key = "\(configuration.row):\(configuration.column)"
+        let alignment: Alignment = configuration.alignment == .leading ? .topLeading
+          : configuration.alignment == .trailing ? .topTrailing : .top
+        configuration.label
+          .multilineTextAlignment(configuration.alignment)
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(.horizontal, 10)
+          .padding(.vertical, 7)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+          .background(GeometryReader { proxy in
+            Color.clear.preference(key: CellFrames.self, value: [key: proxy.frame(in: .named("table"))])
+          })
+      }
+      .frame(width: width)
+      .onPreferenceChange(CellFrames.self) { recorder.cells = $0 }
+
+    let host = NSHostingView(rootView: view)
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: width, height: 1200),
+      styleMask: [.borderless],
+      backing: .buffered,
+      defer: false
+    )
+    window.appearance = NSAppearance(named: .aqua)
+    window.contentView = host
+    defer { window.contentView = nil }
+
+    host.layoutSubtreeIfNeeded()
+    let firstPassHeight = host.fittingSize.height
+    for _ in 0..<6 {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.015))
+      host.layoutSubtreeIfNeeded()
+    }
+    let settledHeight = host.fittingSize.height
+    host.frame = NSRect(x: 0, y: 0, width: width, height: max(1, ceil(settledHeight)))
+    host.layoutSubtreeIfNeeded()
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+    host.layoutSubtreeIfNeeded()
+
+    let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds)
+    if let bitmap {
+      host.cacheDisplay(in: host.bounds, to: bitmap)
+    }
+    return ComparisonSnapshot(
+      firstPassHeight: firstPassHeight,
+      settledHeight: settledHeight,
+      measuredContentWidth: dynamicProvider ? viewport.measuredContentWidth : width,
+      cells: recorder.cells,
+      tiffData: bitmap?.tiffRepresentation
+    )
+  }
+
+  @MainActor
   private func withHost(_ fixture: Fixture, check: (Recorder) -> Void) {
     let host = NSHostingView(rootView: fixture)
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: fixture.width, height: 800),
@@ -175,6 +359,36 @@ private struct TextFrames: PreferenceKey {
   static let defaultValue: [String: CGRect] = [:]
   static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
     value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+  }
+}
+
+private final class ViewportProbe {
+  var proposedWidth: CGFloat = 0
+  var measuredContentWidth: CGFloat = 0
+}
+
+private struct ProposalCaptureLayout: Layout {
+  let viewport: ViewportProbe
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+    if let width = proposal.width, width.isFinite, width > 0 {
+      self.viewport.proposedWidth = width
+    }
+    guard let first = subviews.first else { return .zero }
+    return first.sizeThatFits(proposal)
+  }
+
+  func placeSubviews(
+    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void
+  ) {
+    if bounds.width.isFinite, bounds.width > 0 {
+      self.viewport.proposedWidth = bounds.width
+    }
+    subviews.first?.place(
+      at: bounds.origin,
+      anchor: .topLeading,
+      proposal: ProposedViewSize(width: bounds.width, height: bounds.height)
+    )
   }
 }
 #endif

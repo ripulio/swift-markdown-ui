@@ -60,6 +60,35 @@ private struct TableContentView: View {
           self.cell(row: index / self.columnCount, column: index % self.columnCount)
         }
       }
+    case let .adaptiveDynamic(configuration):
+      let borderInset = 2 * self.borderWidth
+      AdaptiveTableLayout(
+        columnCount: self.columnCount,
+        spacing: self.borderWidth,
+        resolveAvailableWidth: {
+          max(0, configuration.availableWidth() - borderInset)
+        },
+        minimumColumnWidth: configuration.minimumColumnWidth,
+        maximumColumnWidth: configuration.maximumColumnWidth,
+        overflow: configuration.overflow,
+        onMeasureWidth: { innerWidth in
+          configuration.onMeasureWidth?(innerWidth + borderInset)
+        },
+        cachesMeasurements: true,
+        canReuseUnwrappedCellHeights: !self.hasImageCells
+      ) {
+        ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
+          self.cell(row: index / self.columnCount, column: index % self.columnCount)
+        }
+      }
+    }
+  }
+
+  private var hasImageCells: Bool {
+    self.rows.contains { row in
+      row.cells.contains { cell in
+        cell.content.contains(where: \.containsImage)
+      }
     }
   }
 

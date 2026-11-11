@@ -73,4 +73,7 @@ pass without `BlockMarginsPreference` state or preference updates, preserving
 descendant max-margin reduction and tight-list rules. It also adds opt-in
 `markdownLightweightListMarkers()` to skip marker width preference measurement
 for bulleted and single-item numbered lists and fold default bullet marker
-sizing into a single text-style pass.
+sizing into a single text-style pass, and a closure-driven
+`TableLayoutStyle.adaptive(availableWidth:minimumColumnWidth:maximumColumnWidth:overflow:onMeasureWidth:)`
+overload with layout-pass caching so scroll-wrapped tables read their proposed
+width straight from an enclosing `Layout` on the first pass.
