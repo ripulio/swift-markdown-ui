@@ -4,8 +4,6 @@ struct NumberedListView: View {
   @Environment(\.theme.list) private var list
   @Environment(\.theme.numberedListMarker) private var numberedListMarker
   @Environment(\.listLevel) private var listLevel
-  @Environment(\.lightweightListMarkers) private var lightweightListMarkers
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   @State private var markerWidth: CGFloat?
 
@@ -20,7 +18,7 @@ struct NumberedListView: View {
   }
 
   var body: some View {
-    if self.lightweightBlocks, self.list.isIdentity {
+    if self.list.isIdentity {
       self.label
     } else {
       self.list.makeBody(
@@ -39,7 +37,7 @@ struct NumberedListView: View {
   }
 
   @ViewBuilder private var label: some View {
-    let needsWidthSync = !self.lightweightListMarkers || self.items.count > 1
+    let needsWidthSync = self.items.count > 1
     let sequence = ListItemSequence(
       items: self.items,
       start: self.start,

@@ -67,26 +67,29 @@ The default retains the inline image provider for those contexts. A sixth iOS
 UI check verifies heading alt labels, actual table image bounds and link taps.
 All 68 applicable package tests still pass.
 
-## Layout and measurement performance passes (`perf/lighter-blocks`, November 2026)
+## Layout and measurement performance passes (November 2026)
 
-Every optimization on `perf/lighter-blocks` is opt-in (default `false` or `nil`),
-keeps SwiftUI's native `Text`, and preserves exact first-pass/settled heights and
-rendered pixels (`StaticBlockMarginsTests` and `LightweightBlocksTests` on macOS,
-plus Ripul's 35-snapshot UIKit cross-revision SHA-256 check against `c6d0fcc`).
+Passes 1–7 run automatically by default whenever the active `Theme` uses
+declarative or identity block styles, keeping SwiftUI's native `Text` and
+preserving exact first-pass/settled heights and rendered pixels
+(`StaticBlockMarginsTests`, `LightweightListMarkersTests`,
+`LightweightBlocksTests`, and `BulletedListConvergenceTests` on macOS, plus
+Ripul's 35-snapshot UIKit cross-revision SHA-256 check against `c6d0fcc`). Any
+custom `BlockStyle` closure automatically falls back to the general path.
 
 - **Passes 1–3 (`97cd258`..`c1bf001`) — Single-pass settled heights:**
   - `markdownBlockMargins(_:)` spaces blocks from the parsed `BlockNode` tree on
     the first layout pass without `BlockMarginsPreference` state or preference
     updates, preserving descendant max-margin reduction and tight-list rules.
-  - `markdownLightweightListMarkers()` skips marker-width preference measurement
-    for bulleted and single-item numbered lists and folds built-in bullet marker
-    sizing into a single text-style pass (`builtinBulletMarker`).
+  - Bulleted lists and single-item numbered lists skip marker-width preference
+    measurement, and built-in bullet markers size in a single text-style pass
+    (`builtinBulletMarker`).
   - `TableLayoutStyle.adaptive(availableWidth:minimumColumnWidth:maximumColumnWidth:overflow:onMeasureWidth:)`
     adds closure-driven width resolution, layout-pass measurement caching, and
     `canReuseUnwrappedCellHeights` so scroll-wrapped tables read their proposed
     width straight from an enclosing `Layout` on pass 1 and measure unwrapped
     cells once.
-- **Pass 4 (`c6d0fcc`) — `markdownLightweightBlocks()`:**
+- **Pass 4 (`c6d0fcc`) — Lightweight blocks and shape-batched tables:**
   - Paired with `Theme.paragraph(lineSpacing:)` and `markdownTableCellStyle(_:)`,
     pre-collects `AttributeContainer` in `EnvironmentValues.textStyleAttributes`,
     resolves inline `Font` runs in one renderer pass without per-node
@@ -96,19 +99,19 @@ plus Ripul's 35-snapshot UIKit cross-revision SHA-256 check against `c6d0fcc`).
     `TableCellBoundsPreference` anchors, `GeometryReader`s and `Rectangle` grids
     with layout-resolved non-overlapping `Shape` batches (`TableRowCellsShape`
     and `TableBorderGroupShape`).
-- **Pass 5 (`942cb35`) — `markdownCompactLayout()`:**
+- **Pass 5 (`942cb35`) — Compact layouts and equatable themes:**
   - Adds `Equatable` conformances on `Theme`, `BlockStyle` (monotone revision IDs)
     and `InlineTextStyles`, and stores `AttributeContainer` directly in
     `EnvironmentValues.textStyleAttributes` without boxing an `any TextStyle`
     existential so unrelated UIKit/SwiftUI environment updates do not
     re-evaluate `Markdown` or child views.
-  - Under `markdownCompactLayout()`, single-paragraph bulleted lists lay out bare
-    icon/text pairs inside `BulletedListLayout` instead of per-item
-    `Label`/`HStack`s, adaptive tables place bare `Text` cells with padding and
-    column alignment inside `AdaptiveTableLayout`, paragraph-only sequences use
-    `ParagraphStackLayout`, and inline runs share `PrecomputedInlineAttributes`.
-- **Pass 6 (`83cd82d`) — Direct `Text(verbatim:)` runs and bullet probe cache
-  (under `markdownCompactLayout()`):**
+  - Single-paragraph bulleted lists lay out bare icon/text pairs inside
+    `BulletedListLayout` instead of per-item `Label`/`HStack`s, adaptive tables
+    place bare `Text` cells with padding and column alignment inside
+    `AdaptiveTableLayout`, paragraph-only sequences use `ParagraphStackLayout`,
+    and inline runs share `PrecomputedInlineAttributes`.
+- **Pass 6 (`83cd82d`, convergence fix `281f61b`) — Direct `Text(verbatim:)` runs
+  and bullet probe cache:**
   - Eliminates per-run `Foundation.AttributedString` allocation and
     `AttributedStringTextStorage` Objective-C dictionary bridging for plain,
     strong and emphasis inline runs via `DirectTextStyle` (`Text(verbatim:)`
@@ -121,9 +124,7 @@ plus Ripul's 35-snapshot UIKit cross-revision SHA-256 check against `c6d0fcc`).
     never re-measure the hidden `Label` subview or re-store probe metrics across
     layout passes, and keeps a 6-slot width cache in `BulletedListLayout.Cache`
     so multi-width parent layouts do not thrash single-width cached metrics.
-  - Removes `_ConditionalContent` (`DynamicViewList`) wrappers from single-chunk
-    list and paragraph `ForEach` loops.
-- **Pass 7 (`f53b0d5`) — `markdownDirectBlocks()`:**
+- **Pass 7 (`f53b0d5`, height propagation fix `68dd3f9`) — Direct block sequences:**
   - Paired with `Theme.headings(fontWeight:fontSize:lineSpacing:)` /
     `BlockStyle.heading(fontWeight:fontSize:lineSpacing:)`, top-level mixed block
     sequences (`listLevel == 0`) bypass `VStack`, `ForEach`, per-block
@@ -131,7 +132,8 @@ plus Ripul's 35-snapshot UIKit cross-revision SHA-256 check against `c6d0fcc`).
     `HeadingView` (`AnyView` and `.id(kebabCased())`) and redundant
     `markdownBlockPath` writes via `DirectBlockSequenceView` and
     `BlockSpacedStackLayout` (with a homogeneous `Text` fast path for pure
-    heading-and-paragraph runs).
+    heading-and-paragraph runs, and `forceMeasure: true` in `sizeThatFits` so
+    descendant `@State` height changes propagate upward).
   - `StaticViewBatch` unrolls homogeneous batches under 32 items into static
     binary tuples instead of `ForEach` / `DynamicViewList` (and 16-item chunks at
     or above 32).

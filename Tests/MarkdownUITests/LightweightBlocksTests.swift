@@ -235,10 +235,6 @@ final class LightweightBlocksTests: XCTestCase {
         Markdown(markdown)
           .markdownTheme(self.makeTheme(lightweight: true, direct: true))
           .markdownBlockMargins(self.chatMargins)
-          .markdownLightweightListMarkers(true)
-          .markdownLightweightBlocks(true)
-          .markdownCompactLayout(true)
-          .markdownDirectBlocks(true)
           .multilineTextAlignment(alignment)
           .frame(width: 280, alignment: .leading),
         width: 280
@@ -269,8 +265,6 @@ final class LightweightBlocksTests: XCTestCase {
         Markdown("> Quoted note with `code` and **bold**.")
           .markdownTheme(self.theme)
           .markdownBlockMargins(self.margins)
-          .markdownLightweightBlocks()
-          .markdownCompactLayout()
           .disabled(self.model.isDisabled)
           .frame(width: 320, alignment: .leading)
       }
@@ -300,7 +294,13 @@ final class LightweightBlocksTests: XCTestCase {
   @MainActor
   func testCustomParagraphBlockStyleOverrideDisablesFastParagraphPathCleanly() {
     let markdown = "Custom paragraph override with **bold** and `code`."
-    let theme = self.makeTheme(lightweight: true)
+    let overrideTheme = self.makeTheme(lightweight: true)
+      .paragraph { configuration in
+        configuration.label
+          .padding(6)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    let closureBaselineTheme = self.makeTheme(lightweight: false)
       .paragraph { configuration in
         configuration.label
           .padding(6)
@@ -309,16 +309,15 @@ final class LightweightBlocksTests: XCTestCase {
 
     let baseline = self.runHost(
       Markdown(markdown)
-        .markdownTheme(theme)
+        .markdownTheme(closureBaselineTheme)
         .markdownBlockMargins(self.chatMargins)
         .frame(width: 320, alignment: .leading),
       width: 320
     )
     let candidate = self.runHost(
       Markdown(markdown)
-        .markdownTheme(theme)
+        .markdownTheme(overrideTheme)
         .markdownBlockMargins(self.chatMargins)
-        .markdownLightweightBlocks()
         .frame(width: 320, alignment: .leading),
       width: 320
     )
@@ -344,10 +343,6 @@ final class LightweightBlocksTests: XCTestCase {
     let view = Markdown(markdown)
       .markdownTheme(self.makeTheme(lightweight: lightweight, direct: direct))
       .markdownBlockMargins(self.chatMargins)
-      .markdownLightweightListMarkers(lightweight)
-      .markdownLightweightBlocks(lightweight)
-      .markdownCompactLayout(compact)
-      .markdownDirectBlocks(direct)
       .markdownSoftBreakMode(.lineBreak)
       .frame(width: width, alignment: .leading)
     return self.runHost(view, width: width)

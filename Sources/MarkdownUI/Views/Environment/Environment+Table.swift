@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Lightweight styling parameters for Markdown table cells that avoid per-cell
-/// `AnyView` type erasure when ``View/markdownLightweightBlocks(_:)`` is enabled.
+/// Declarative styling parameters for Markdown table cells that avoid per-cell
+/// `AnyView` type erasure in adaptive table layouts.
 public struct MarkdownTableCellStyle: Equatable {
   public var headerFontWeight: Font.Weight?
   public var lineSpacing: RelativeSize?
@@ -24,7 +24,7 @@ extension View {
     self.environment(\.tableLayoutStyle, layout)
   }
 
-  /// Sets lightweight cell styling for Markdown tables when lightweight blocks are enabled.
+  /// Sets declarative cell styling for adaptive Markdown tables.
   public func markdownTableCellStyle(_ style: MarkdownTableCellStyle?) -> some View {
     self.environment(\.tableCellStyle, style)
   }

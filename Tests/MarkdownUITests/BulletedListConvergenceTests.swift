@@ -44,17 +44,12 @@
     @ViewBuilder
     private func makeHostedMarkdown(
       _ text: String,
-      directBlocks: Bool,
       selectable: Bool,
       onHeightReport: @escaping (CGFloat) -> Void
     ) -> some View {
       let body = Markdown(MarkdownContent(text))
         .markdownTheme(self.makeTheme())
         .markdownBlockMargins(self.chatMargins)
-        .markdownLightweightListMarkers(true)
-        .markdownLightweightBlocks(true)
-        .markdownCompactLayout(true)
-        .markdownDirectBlocks(directBlocks)
         .markdownSoftBreakMode(.lineBreak)
         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -108,24 +103,20 @@
          - Start a 12-item batch across Studio + mini\nwith soft break inside bullet item.
       """
 
-      for directBlocks in [false, true] {
-        for selectable in [true, false] {
-          for clearCache in [true, false] {
-            self.runStreamingScenario(
-              name: "streamingReply",
-              fullText: streamingReply,
-              directBlocks: directBlocks,
-              selectable: selectable,
-              clearCache: clearCache
-            )
-            self.runStreamingScenario(
-              name: "nestedAcceptanceReply",
-              fullText: nestedAcceptanceReply,
-              directBlocks: directBlocks,
-              selectable: selectable,
-              clearCache: clearCache
-            )
-          }
+      for selectable in [true, false] {
+        for clearCache in [true, false] {
+          self.runStreamingScenario(
+            name: "streamingReply",
+            fullText: streamingReply,
+            selectable: selectable,
+            clearCache: clearCache
+          )
+          self.runStreamingScenario(
+            name: "nestedAcceptanceReply",
+            fullText: nestedAcceptanceReply,
+            selectable: selectable,
+            clearCache: clearCache
+          )
         }
       }
     }
@@ -134,7 +125,6 @@
     private func runStreamingScenario(
       name: String,
       fullText: String,
-      directBlocks: Bool,
       selectable: Bool,
       clearCache: Bool
     ) {
@@ -165,7 +155,6 @@
           AnyView(
             self.makeHostedMarkdown(
               text,
-              directBlocks: directBlocks,
               selectable: selectable,
               onHeightReport: { reported in
                 let rounded = max(0, reported.rounded(.up))
@@ -219,12 +208,12 @@
         let afterIdle = _BulletedListLayoutDebug.snapshot()
         let idleDelta = afterIdle.sizeThatFitsCalls - afterStream.sizeThatFitsCalls
         print(
-          "[CONVERGE-IOS] \(name) direct=\(directBlocks) sel=\(selectable) cold=\(clearCache) stream=\(afterStream) idleDelta=\(idleDelta) corr=\(heightCorrections) ticks=\(perTickCounts)"
+          "[CONVERGE-IOS] \(name) sel=\(selectable) cold=\(clearCache) stream=\(afterStream) idleDelta=\(idleDelta) corr=\(heightCorrections) ticks=\(perTickCounts)"
         )
         XCTAssertLessThanOrEqual(
           idleDelta,
           4,
-          "Non-converging layout on iOS for \(name) direct=\(directBlocks) sel=\(selectable) cold=\(clearCache): idleDelta=\(idleDelta) ticks=\(perTickCounts)"
+          "Non-converging layout on iOS for \(name) sel=\(selectable) cold=\(clearCache): idleDelta=\(idleDelta) ticks=\(perTickCounts)"
         )
       #elseif canImport(AppKit)
         let window = NSWindow(
@@ -241,7 +230,6 @@
           AnyView(
             self.makeHostedMarkdown(
               text,
-              directBlocks: directBlocks,
               selectable: selectable,
               onHeightReport: { reported in
                 let rounded = max(0, reported.rounded(.up))
@@ -286,12 +274,12 @@
         let afterIdle = _BulletedListLayoutDebug.snapshot()
         let idleDelta = afterIdle.sizeThatFitsCalls - afterStream.sizeThatFitsCalls
         print(
-          "[CONVERGE-MAC] \(name) direct=\(directBlocks) sel=\(selectable) cold=\(clearCache) stream=\(afterStream) idleDelta=\(idleDelta) corr=\(heightCorrections) ticks=\(perTickCounts)"
+          "[CONVERGE-MAC] \(name) sel=\(selectable) cold=\(clearCache) stream=\(afterStream) idleDelta=\(idleDelta) corr=\(heightCorrections) ticks=\(perTickCounts)"
         )
         XCTAssertEqual(
           idleDelta,
           0,
-          "Non-converging layout on macOS for \(name) direct=\(directBlocks) sel=\(selectable) cold=\(clearCache): idleDelta=\(idleDelta) ticks=\(perTickCounts)"
+          "Non-converging layout on macOS for \(name) sel=\(selectable) cold=\(clearCache): idleDelta=\(idleDelta) ticks=\(perTickCounts)"
         )
       #endif
     }
@@ -307,77 +295,71 @@
       - **Outer item two:**
         - Second level 2 list sharing the same `BulletProbeKey` as the first level 2 list.
       """
-      for directBlocks in [false, true] {
-        _BulletedListLayoutDebug.reset(clearProbeCache: true, enabled: true)
-        defer { _ = _BulletedListLayoutDebug.stop() }
+      _BulletedListLayoutDebug.reset(clearProbeCache: true, enabled: true)
+      defer { _ = _BulletedListLayoutDebug.stop() }
 
-        let root = DualWidthProbeLayout {
-          Markdown(MarkdownContent(nested))
-            .markdownTheme(self.makeTheme())
-            .markdownBlockMargins(self.chatMargins)
-            .markdownLightweightListMarkers(true)
-            .markdownLightweightBlocks(true)
-            .markdownCompactLayout(true)
-            .markdownDirectBlocks(directBlocks)
-            .markdownSoftBreakMode(.lineBreak)
+      let root = DualWidthProbeLayout {
+        Markdown(MarkdownContent(nested))
+          .markdownTheme(self.makeTheme())
+          .markdownBlockMargins(self.chatMargins)
+          .markdownSoftBreakMode(.lineBreak)
+      }
+
+      #if canImport(UIKit)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 420, height: 900))
+        let vc = UIViewController()
+        window.rootViewController = vc
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+
+        let host = UIHostingController(rootView: root)
+        if #available(iOS 16.0, *) { host.sizingOptions = [] }
+        if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
+        vc.addChild(host)
+        vc.view.addSubview(host.view)
+        host.didMove(toParent: vc)
+        defer {
+          host.willMove(toParent: nil)
+          host.view.removeFromSuperview()
+          host.removeFromParent()
         }
 
-        #if canImport(UIKit)
-          let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 420, height: 900))
-          let vc = UIViewController()
-          window.rootViewController = vc
-          window.makeKeyAndVisible()
-          defer { window.isHidden = true }
+        let s1 = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
+        host.view.frame = CGRect(x: 0, y: 0, width: 400, height: ceil(s1.height))
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        let afterFirstLayout = _BulletedListLayoutDebug.snapshot()
+        // Repeat sizeThatFits + layout without content changes: multi-width cache must hit with 0 new measures or probe stores.
+        _ = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        let afterSecondLayout = _BulletedListLayoutDebug.snapshot()
+      #elseif canImport(AppKit)
+        let window = NSWindow(
+          contentRect: NSRect(x: 0, y: 0, width: 420, height: 900),
+          styleMask: [.borderless],
+          backing: .buffered,
+          defer: false
+        )
+        let host = NSHostingView(rootView: root)
+        if #available(macOS 13.0, *) { host.sizingOptions = [] }
+        window.contentView = host
+        defer { window.contentView = nil }
+        host.frame = NSRect(x: 0, y: 0, width: 400, height: 900)
+        host.layoutSubtreeIfNeeded()
+        let afterFirstLayout = _BulletedListLayoutDebug.snapshot()
+        host.needsLayout = true
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
+        let afterSecondLayout = _BulletedListLayoutDebug.snapshot()
+      #endif
 
-          let host = UIHostingController(rootView: root)
-          if #available(iOS 16.0, *) { host.sizingOptions = [] }
-          if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
-          vc.addChild(host)
-          vc.view.addSubview(host.view)
-          host.didMove(toParent: vc)
-          defer {
-            host.willMove(toParent: nil)
-            host.view.removeFromSuperview()
-            host.removeFromParent()
-          }
-
-          let s1 = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
-          host.view.frame = CGRect(x: 0, y: 0, width: 400, height: ceil(s1.height))
-          host.view.setNeedsLayout()
-          host.view.layoutIfNeeded()
-          let afterFirstLayout = _BulletedListLayoutDebug.snapshot()
-          // Repeat sizeThatFits + layout without content changes: multi-width cache must hit with 0 new measures or probe stores.
-          _ = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
-          host.view.setNeedsLayout()
-          host.view.layoutIfNeeded()
-          RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
-          let afterSecondLayout = _BulletedListLayoutDebug.snapshot()
-        #elseif canImport(AppKit)
-          let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 900),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-          )
-          let host = NSHostingView(rootView: root)
-          if #available(macOS 13.0, *) { host.sizingOptions = [] }
-          window.contentView = host
-          defer { window.contentView = nil }
-          host.frame = NSRect(x: 0, y: 0, width: 400, height: 900)
-          host.layoutSubtreeIfNeeded()
-          let afterFirstLayout = _BulletedListLayoutDebug.snapshot()
-          host.needsLayout = true
-          host.layoutSubtreeIfNeeded()
-          RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
-          let afterSecondLayout = _BulletedListLayoutDebug.snapshot()
-        #endif
-
-        // Only 2 compact bulleted list levels exist here (level 2 circle and level 3 square; level 1 has nested children),
-        // so cold probe storage must run at most once per unique level (<= 2), never per width probe or per list instance.
-        XCTAssertLessThanOrEqual(afterFirstLayout.probeStoreCalls, 2)
-        XCTAssertEqual(afterSecondLayout.probeStoreCalls, afterFirstLayout.probeStoreCalls)
-        XCTAssertEqual(afterSecondLayout.measureCalls, afterFirstLayout.measureCalls)
-      }
+      // Only 2 compact bulleted list levels exist here (level 2 circle and level 3 square; level 1 has nested children),
+      // so cold probe storage must run at most once per unique level (<= 2), never per width probe or per list instance.
+      XCTAssertLessThanOrEqual(afterFirstLayout.probeStoreCalls, 2)
+      XCTAssertEqual(afterSecondLayout.probeStoreCalls, afterFirstLayout.probeStoreCalls)
+      XCTAssertEqual(afterSecondLayout.measureCalls, afterFirstLayout.measureCalls)
     }
 
     @MainActor
@@ -404,10 +386,6 @@
       let root = Markdown(MarkdownContent(markdown))
         .markdownTheme(theme)
         .markdownBlockMargins(self.chatMargins)
-        .markdownLightweightListMarkers(true)
-        .markdownLightweightBlocks(true)
-        .markdownCompactLayout(true)
-        .markdownDirectBlocks(true)
         .markdownSoftBreakMode(.lineBreak)
         .background(
           GeometryReader { geo in

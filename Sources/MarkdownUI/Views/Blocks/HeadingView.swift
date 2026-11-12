@@ -6,9 +6,6 @@ struct HeadingView: View {
   @Environment(\.textStyleAttributes) private var textStyleAttributes
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
-  @Environment(\.compactLayout) private var compactLayout
-  @Environment(\.directBlocks) private var directBlocks
 
   private let level: Int
   private let content: [InlineNode]
@@ -20,10 +17,7 @@ struct HeadingView: View {
 
   var body: some View {
     let style = self.headings[self.level - 1]
-    if self.directBlocks,
-      self.compactLayout,
-      self.lightweightBlocks,
-      style.headingSpec != nil || style.isIdentity,
+    if style.headingSpec != nil || style.isIdentity,
       !self.content.contains(where: \.containsImage),
       !self.content.hasMultipleTextChunks(softBreakMode: self.softBreakMode)
     {

@@ -99,48 +99,38 @@ final class LightweightListMarkersTests: XCTestCase {
         let baseline = self.measure(
           sample.markdown,
           width: width,
-          lightweightMarkers: false,
           staticMargins: false
         )
-        let lightweightOnly = self.measure(
+        let candidate = self.measure(
           sample.markdown,
           width: width,
-          lightweightMarkers: true,
-          staticMargins: false
-        )
-        let combined = self.measure(
-          sample.markdown,
-          width: width,
-          lightweightMarkers: true,
           staticMargins: true
         )
 
-        for (label, candidate) in [("lightweight", lightweightOnly), ("combined", combined)] {
-          XCTAssertEqual(
-            candidate.settledHeight,
-            baseline.settledHeight,
-            accuracy: 0.5,
-            "Settled height mismatch (\(label)) for \(sample.name) at width=\(width)"
-          )
-          XCTAssertEqual(
-            Set(candidate.frames.keys),
-            Set(baseline.frames.keys),
-            "Recorded block keys differ (\(label)) for \(sample.name) at width=\(width)"
-          )
-          for (key, expected) in baseline.frames {
-            guard let actual = candidate.frames[key] else { continue }
-            XCTAssertEqual(actual.minX, expected.minX, accuracy: 0.5, "\(label) minX \(sample.name) \(key)")
-            XCTAssertEqual(actual.minY, expected.minY, accuracy: 0.5, "\(label) minY \(sample.name) \(key)")
-            XCTAssertEqual(actual.width, expected.width, accuracy: 0.5, "\(label) width \(sample.name) \(key)")
-            XCTAssertEqual(actual.height, expected.height, accuracy: 0.5, "\(label) height \(sample.name) \(key)")
-          }
-          XCTAssertNotNil(baseline.tiffData)
-          XCTAssertEqual(
-            candidate.tiffData,
-            baseline.tiffData,
-            "Rendered pixels differ (\(label)) for \(sample.name) at width=\(width)"
-          )
+        XCTAssertEqual(
+          candidate.settledHeight,
+          baseline.settledHeight,
+          accuracy: 0.5,
+          "Settled height mismatch for \(sample.name) at width=\(width)"
+        )
+        XCTAssertEqual(
+          Set(candidate.frames.keys),
+          Set(baseline.frames.keys),
+          "Recorded block keys differ for \(sample.name) at width=\(width)"
+        )
+        for (key, expected) in baseline.frames {
+          guard let actual = candidate.frames[key] else { continue }
+          XCTAssertEqual(actual.minX, expected.minX, accuracy: 0.5, "minX \(sample.name) \(key)")
+          XCTAssertEqual(actual.minY, expected.minY, accuracy: 0.5, "minY \(sample.name) \(key)")
+          XCTAssertEqual(actual.width, expected.width, accuracy: 0.5, "width \(sample.name) \(key)")
+          XCTAssertEqual(actual.height, expected.height, accuracy: 0.5, "height \(sample.name) \(key)")
         }
+        XCTAssertNotNil(baseline.tiffData)
+        XCTAssertEqual(
+          candidate.tiffData,
+          baseline.tiffData,
+          "Rendered pixels differ for \(sample.name) at width=\(width)"
+        )
       }
     }
   }
@@ -161,20 +151,23 @@ final class LightweightListMarkersTests: XCTestCase {
     7. Roman VII
     8. Roman VIII
     """
-    let customTheme = self.makeTheme(includeMargins: true)
+    let dynamicTheme = self.makeTheme(includeMargins: true)
+      .bulletedListMarker(.dash)
+      .numberedListMarker(.upperRoman)
+    let staticTheme = self.makeTheme(includeMargins: false)
       .bulletedListMarker(.dash)
       .numberedListMarker(.upperRoman)
 
     let baseline = self.runHost(
       Markdown(markdown)
-        .markdownTheme(customTheme)
+        .markdownTheme(dynamicTheme)
         .frame(width: 340, alignment: .leading),
       width: 340
     )
     let candidate = self.runHost(
       Markdown(markdown)
-        .markdownTheme(customTheme)
-        .markdownLightweightListMarkers()
+        .markdownTheme(staticTheme)
+        .markdownBlockMargins(self.chatMargins)
         .frame(width: 340, alignment: .leading),
       width: 340
     )
@@ -192,14 +185,12 @@ final class LightweightListMarkersTests: XCTestCase {
   private func measure(
     _ markdown: String,
     width: CGFloat,
-    lightweightMarkers: Bool,
     staticMargins: Bool
   ) -> Measurement {
     let recorder = ListFrameRecorder()
     let view = Markdown(markdown)
       .markdownTheme(self.makeTheme(includeMargins: !staticMargins))
       .markdownBlockMargins(staticMargins ? self.chatMargins : nil)
-      .markdownLightweightListMarkers(lightweightMarkers)
       .markdownSoftBreakMode(.lineBreak)
       .frame(width: width, alignment: .leading)
       .coordinateSpace(name: "listDoc")

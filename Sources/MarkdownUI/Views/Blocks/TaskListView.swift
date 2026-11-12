@@ -3,7 +3,6 @@ import SwiftUI
 struct TaskListView: View {
   @Environment(\.theme.list) private var list
   @Environment(\.listLevel) private var listLevel
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   private let isTight: Bool
   private let items: [RawTaskListItem]
@@ -14,7 +13,7 @@ struct TaskListView: View {
   }
 
   var body: some View {
-    if self.lightweightBlocks, self.list.isIdentity {
+    if self.list.isIdentity {
       self.label
     } else {
       self.list.makeBody(

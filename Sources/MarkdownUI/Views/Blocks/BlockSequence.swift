@@ -11,9 +11,6 @@ where
   @Environment(\.markdownBlockPath) private var blockPath
   @Environment(\.markdownBlockMargins) private var staticBlockMargins
   @Environment(\.inlineImageFlow) private var inlineImageFlow
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
-  @Environment(\.compactLayout) private var compactLayout
-  @Environment(\.directBlocks) private var directBlocks
   @Environment(\.listLevel) private var listLevel
   @Environment(\.theme.paragraph) private var paragraph
 
@@ -42,8 +39,6 @@ where
   var body: some View {
     if let staticBlockMargins = self.staticBlockMargins {
       if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
-        self.compactLayout,
-        self.lightweightBlocks,
         self.paragraph.paragraphLineSpacing != nil || self.paragraph.isIdentity,
         let rawBlocks = self.rawBlocks,
         let paragraphs = Self.simpleParagraphBlocks(rawBlocks)
@@ -56,9 +51,6 @@ where
           paragraphLineSpacing: self.paragraph.paragraphLineSpacing
         )
       } else if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
-        self.directBlocks,
-        self.compactLayout,
-        self.lightweightBlocks,
         self.listLevel == 0,
         let rawBlocks = self.rawBlocks,
         !rawBlocks.isEmpty,
@@ -84,8 +76,7 @@ where
           inlineImageFlow: self.inlineImageFlow,
           textAlignment: self.textAlignment,
           tightSpacingEnabled: self.tightSpacingEnabled,
-          blockPath: self.blockPath,
-          lightweightBlocks: self.lightweightBlocks
+          blockPath: self.blockPath
         )
       }
     } else {
@@ -123,10 +114,9 @@ private struct StaticBlockSequenceContent<Element: BlockMarginElement, Content: 
   let textAlignment: TextAlignment
   let tightSpacingEnabled: Bool
   let blockPath: [Int]
-  let lightweightBlocks: Bool
 
   var body: some View {
-    if self.lightweightBlocks, self.data.count == 1 {
+    if self.data.count == 1 {
       self.content(0, self.data[0].value)
         .environment(\.markdownBlockPath, self.blockPath + [0])
     } else {
@@ -199,7 +189,6 @@ private struct CompactParagraphSequenceView: View {
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.lineSpacing) private var environmentLineSpacing
-  @Environment(\.directBlocks) private var directBlocks
 
   let paragraphs: [[InlineNode]]
   let margins: MarkdownBlockMargins
@@ -208,23 +197,15 @@ private struct CompactParagraphSequenceView: View {
   let paragraphLineSpacing: RelativeSize?
 
   var body: some View {
-    let cache =
-      self.directBlocks
-      ? InlineAttributesCache.lookup(
-        attributes: self.textStyleAttributes,
-        inlineStyles: self.inlineStyles
-      )
-      : PrecomputedInlineAttributes(
-        attributes: self.textStyleAttributes,
-        inlineStyles: self.inlineStyles
-      )
+    let cache = InlineAttributesCache.lookup(
+      attributes: self.textStyleAttributes,
+      inlineStyles: self.inlineStyles
+    )
     let resolvedLineSpacing = self.paragraphLineSpacing?.points(
       relativeTo: self.textStyleAttributes.fontProperties
     )
 
-    if self.directBlocks,
-      !self.paragraphs.contains(where: { $0.hasMultipleTextChunks(softBreakMode: self.softBreakMode) })
-    {
+    if !self.paragraphs.contains(where: { $0.hasMultipleTextChunks(softBreakMode: self.softBreakMode) }) {
       if self.paragraphs.count == 1 {
         let single = self.paragraphs[0].renderCompactText(
           baseURL: self.baseURL,
@@ -286,10 +267,8 @@ private struct CompactParagraphSequenceView: View {
             self.margins.paragraph.top,
             self.tightSpacingEnabled ? 0 : self.margins.paragraph.bottom
           ) ?? 0
-        let allSingleChunk = itemChunks.allSatisfy { $0.count == 1 }
         let stack = self.makeParagraphStack(
           itemChunks: itemChunks,
-          allSingleChunk: allSingleChunk,
           spacing: spacing,
           cache: cache,
           chunkSpacing: resolvedLineSpacing ?? self.environmentLineSpacing
@@ -305,38 +284,22 @@ private struct CompactParagraphSequenceView: View {
     }
   }
 
-  @ViewBuilder private func makeParagraphStack(
+  private func makeParagraphStack(
     itemChunks: [[[InlineNode]]],
-    allSingleChunk: Bool,
     spacing: CGFloat,
     cache: PrecomputedInlineAttributes,
     chunkSpacing: CGFloat
   ) -> some View {
-    if allSingleChunk {
-      ParagraphStackLayout(
-        alignment: self.textAlignment,
-        spacing: spacing
-      ) {
-        ForEach(itemChunks.indices, id: \.self) { index in
-          itemChunks[index][0].renderCompactText(
-            baseURL: self.baseURL,
-            softBreakMode: self.softBreakMode,
-            cache: cache
-          )
-        }
-      }
-    } else {
-      ParagraphStackLayout(
-        alignment: self.textAlignment,
-        spacing: spacing
-      ) {
-        ForEach(itemChunks.indices, id: \.self) { index in
-          self.paragraphItem(
-            chunks: itemChunks[index],
-            cache: cache,
-            chunkSpacing: chunkSpacing
-          )
-        }
+    ParagraphStackLayout(
+      alignment: self.textAlignment,
+      spacing: spacing
+    ) {
+      ForEach(itemChunks.indices, id: \.self) { index in
+        self.paragraphItem(
+          chunks: itemChunks[index],
+          cache: cache,
+          chunkSpacing: chunkSpacing
+        )
       }
     }
   }
@@ -521,7 +484,7 @@ private struct DirectBlockSequenceView: View {
     )
     case codeBlock(fenceInfo: String?, content: String, index: Int)
     case table(columnAlignments: [RawTableColumnAlignment], rows: [RawTableRow], index: Int)
-    case thematicBreak
+    case thematicBreak(index: Int)
     case other(block: BlockNode, index: Int)
   }
 
@@ -530,7 +493,6 @@ private struct DirectBlockSequenceView: View {
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.lineSpacing) private var environmentLineSpacing
-  @Environment(\.lightweightListMarkers) private var lightweightListMarkers
 
   let rawBlocks: [BlockNode]
   let topSpacings: [CGFloat]
@@ -597,8 +559,7 @@ private struct DirectBlockSequenceView: View {
       relativeTo: fontProperties
     )
     let canCompactList =
-      self.lightweightListMarkers
-      && self.theme.list.isIdentity
+      self.theme.list.isIdentity
       && self.theme.listItem.isIdentity
       && canDirectParagraph
     let builtinBullet = self.theme.bulletedListMarker.builtinBulletMarker
@@ -703,7 +664,7 @@ private struct DirectBlockSequenceView: View {
 
       case .thematicBreak:
         allProse = false
-        items.append(.thematicBreak)
+        items.append(.thematicBreak(index: index))
 
       default:
         allProse = false
@@ -788,8 +749,9 @@ private struct DirectBlockSequenceView: View {
     case let .table(columnAlignments, rows, index):
       TableView(columnAlignments: columnAlignments, rows: rows)
         .environment(\.markdownBlockPath, self.blockPath + [index])
-    case .thematicBreak:
+    case let .thematicBreak(index):
       self.theme.thematicBreak.makeBody(configuration: ())
+        .environment(\.markdownBlockPath, self.blockPath + [index])
     case let .other(block, index):
       block
         .environment(\.markdownBlockPath, self.blockPath + [index])

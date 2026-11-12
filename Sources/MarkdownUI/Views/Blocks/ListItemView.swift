@@ -3,7 +3,6 @@ import SwiftUI
 struct ListItemView: View {
   @Environment(\.theme.listItem) private var listItem
   @Environment(\.listLevel) private var listLevel
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
   @Environment(\.textStyleAttributes) private var textStyleAttributes
 
   private let item: RawListItem
@@ -27,7 +26,7 @@ struct ListItemView: View {
   }
 
   var body: some View {
-    if self.lightweightBlocks, self.listItem.isIdentity {
+    if self.listItem.isIdentity {
       self.label
     } else {
       self.listItem.makeBody(
@@ -41,7 +40,7 @@ struct ListItemView: View {
 
   private var label: some View {
     Label {
-      if self.lightweightBlocks, self.item.children.count == 1,
+      if self.item.children.count == 1,
         case .paragraph(let inlines) = self.item.children[0]
       {
         ParagraphView(content: inlines)
@@ -55,7 +54,7 @@ struct ListItemView: View {
           .textStyleFont()
           .readWidth(column: 0)
           .frame(width: self.markerWidth, alignment: .trailing)
-      } else if self.lightweightBlocks, let builtin = self.markerStyle.builtinBulletMarker {
+      } else if let builtin = self.markerStyle.builtinBulletMarker {
         let fontSize =
           self.textStyleAttributes.fontProperties?.scaledSize ?? FontProperties.defaultSize
         ListBullet.builtinImage(for: builtin, listLevel: self.listLevel)

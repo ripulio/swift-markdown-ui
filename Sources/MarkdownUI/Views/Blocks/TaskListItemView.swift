@@ -3,7 +3,6 @@ import SwiftUI
 struct TaskListItemView: View {
   @Environment(\.theme.listItem) private var listItem
   @Environment(\.theme.taskListMarker) private var taskListMarker
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   private let item: RawTaskListItem
 
@@ -12,7 +11,7 @@ struct TaskListItemView: View {
   }
 
   var body: some View {
-    if self.lightweightBlocks, self.listItem.isIdentity {
+    if self.listItem.isIdentity {
       self.label
     } else {
       self.listItem.makeBody(
@@ -26,7 +25,7 @@ struct TaskListItemView: View {
 
   private var label: some View {
     Label {
-      if self.lightweightBlocks, self.item.children.count == 1,
+      if self.item.children.count == 1,
         case .paragraph(let inlines) = self.item.children[0]
       {
         ParagraphView(content: inlines)

@@ -1,9 +1,6 @@
 import SwiftUI
 
 struct InlineText: View {
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
-  @Environment(\.compactLayout) private var compactLayout
-  @Environment(\.directBlocks) private var directBlocks
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
@@ -21,9 +18,9 @@ struct InlineText: View {
   }
 
   var body: some View {
-    if self.lightweightBlocks, !self.hasImages {
+    if !self.hasImages {
       self.lightweightTextBody
-    } else if self.hasImages, self.inlineImageFlow,
+    } else if self.inlineImageFlow,
       #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
       let flow = ImageFlow(self.inlines)
     {
@@ -34,64 +31,31 @@ struct InlineText: View {
   }
 
   @ViewBuilder private var lightweightTextBody: some View {
-    if self.compactLayout {
-      let cache =
-        self.directBlocks
-        ? InlineAttributesCache.lookup(
-          attributes: self.textStyleAttributes,
-          inlineStyles: self.inlineStyles
-        )
-        : PrecomputedInlineAttributes(
-          attributes: self.textStyleAttributes,
-          inlineStyles: self.inlineStyles
-        )
-      if self.directBlocks, !self.inlines.hasMultipleTextChunks(softBreakMode: self.softBreakMode) {
-        self.inlines.renderCompactText(
+    let cache = InlineAttributesCache.lookup(
+      attributes: self.textStyleAttributes,
+      inlineStyles: self.inlineStyles
+    )
+    if !self.inlines.hasMultipleTextChunks(softBreakMode: self.softBreakMode) {
+      self.inlines.renderCompactText(
+        baseURL: self.baseURL,
+        softBreakMode: self.softBreakMode,
+        cache: cache
+      )
+    } else {
+      let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
+      if chunks.count == 1 {
+        chunks[0].renderCompactText(
           baseURL: self.baseURL,
           softBreakMode: self.softBreakMode,
           cache: cache
         )
       } else {
-        let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
-        if chunks.count == 1 {
-          chunks[0].renderCompactText(
-            baseURL: self.baseURL,
-            softBreakMode: self.softBreakMode,
-            cache: cache
-          )
-        } else {
-          VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
-            ForEach(chunks.indices, id: \.self) { index in
-              chunks[index].renderCompactText(
-                baseURL: self.baseURL,
-                softBreakMode: self.softBreakMode,
-                cache: cache
-              )
-            }
-          }
-        }
-      }
-    } else {
-      let chunks = self.inlines.textChunks(softBreakMode: self.softBreakMode)
-      if chunks.count == 1 {
-        chunks[0].renderText(
-          baseURL: self.baseURL,
-          textStyles: self.inlineStyles,
-          images: [:],
-          softBreakMode: self.softBreakMode,
-          attributes: self.textStyleAttributes,
-          preResolveFonts: true
-        )
-      } else {
         VStack(alignment: self.alignment.alignment.horizontal, spacing: self.lineSpacing) {
           ForEach(chunks.indices, id: \.self) { index in
-            chunks[index].renderText(
+            chunks[index].renderCompactText(
               baseURL: self.baseURL,
-              textStyles: self.inlineStyles,
-              images: [:],
               softBreakMode: self.softBreakMode,
-              attributes: self.textStyleAttributes,
-              preResolveFonts: true
+              cache: cache
             )
           }
         }
@@ -108,7 +72,6 @@ private struct InlineTextWithImages: View {
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.multilineTextAlignment) private var alignment
   @Environment(\.lineSpacing) private var lineSpacing
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
 
   @State private var inlineImages: [String: Image] = [:]
 
@@ -125,7 +88,7 @@ private struct InlineTextWithImages: View {
             images: self.inlineImages,
             softBreakMode: self.softBreakMode,
             attributes: attributes,
-            preResolveFonts: self.lightweightBlocks
+            preResolveFonts: true
           )
         }
       }

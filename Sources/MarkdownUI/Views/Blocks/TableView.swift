@@ -29,9 +29,6 @@ private struct TableContentView: View {
   @Environment(\.tableBorderStyle.strokeStyle.lineWidth) private var borderWidth
   @Environment(\.tableLayoutStyle) private var layoutStyle
   @Environment(\.tableCellStyle) private var tableCellStyle
-  @Environment(\.lightweightBlocks) private var lightweightBlocks
-  @Environment(\.compactLayout) private var compactLayout
-  @Environment(\.directBlocks) private var directBlocks
   @Environment(\.textStyleAttributes) private var textStyleAttributes
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.baseURL) private var baseURL
@@ -43,7 +40,6 @@ private struct TableContentView: View {
   let rows: [RawTableRow]
 
   private var usesDirectBoundsDecoration: Bool {
-    guard self.lightweightBlocks else { return false }
     switch self.layoutStyle {
     case .automatic:
       return false
@@ -145,8 +141,7 @@ private struct TableContentView: View {
   }
 
   private func canUseCompactDirectCells(directDecoration: Bool) -> Bool {
-    guard self.compactLayout,
-      directDecoration,
+    guard directDecoration,
       self.tableCellStyle != nil,
       self.columnCount > 0,
       self.rowCount > 0
@@ -158,14 +153,7 @@ private struct TableContentView: View {
       guard row.cells.count >= self.columnCount else { return false }
       for column in 0..<self.columnCount {
         let inlines = row.cells[column].content
-        if inlines.contains(where: \.containsImage) {
-          return false
-        }
-        if self.directBlocks {
-          if inlines.hasMultipleTextChunks(softBreakMode: mode) {
-            return false
-          }
-        } else if inlines.textChunks(softBreakMode: mode).count > 1 {
+        if inlines.contains(where: \.containsImage) || inlines.hasMultipleTextChunks(softBreakMode: mode) {
           return false
         }
       }
@@ -178,57 +166,22 @@ private struct TableContentView: View {
     useCompactCells: Bool
   ) -> some View {
     if useCompactCells, let cellStyle = self.tableCellStyle {
-      let bodyCache =
-        self.directBlocks
-        ? InlineAttributesCache.lookup(
-          attributes: self.textStyleAttributes,
-          inlineStyles: self.inlineStyles
-        )
-        : PrecomputedInlineAttributes(
-          attributes: self.textStyleAttributes,
-          inlineStyles: self.inlineStyles
-        )
+      let bodyCache = InlineAttributesCache.lookup(
+        attributes: self.textStyleAttributes,
+        inlineStyles: self.inlineStyles
+      )
       let headerCache: PrecomputedInlineAttributes = {
         guard let weight = cellStyle.headerFontWeight else { return bodyCache }
-        if self.directBlocks {
-          return InlineAttributesCache.lookup(
-            attributes: self.textStyleAttributes,
-            inlineStyles: self.inlineStyles,
-            overrideWeight: weight
-          )
-        }
-        return PrecomputedInlineAttributes(
-          attributes: FontWeight(weight).mergingAttributes(self.textStyleAttributes),
-          inlineStyles: self.inlineStyles
+        return InlineAttributesCache.lookup(
+          attributes: self.textStyleAttributes,
+          inlineStyles: self.inlineStyles,
+          overrideWeight: weight
         )
       }()
       let alignments = self.columnAlignments.map(TextAlignment.init)
       let allLeading = alignments.allSatisfy { $0 == .leading }
-      if self.directBlocks {
-        if allLeading {
-          StaticViewBatch(count: self.rowCount * self.columnCount) { index in
-            let row = index / self.columnCount
-            let column = index % self.columnCount
-            self.rows[row].cells[column].content.renderCompactText(
-              baseURL: self.baseURL,
-              softBreakMode: self.softBreakMode,
-              cache: row == 0 ? headerCache : bodyCache
-            )
-          }
-        } else {
-          StaticViewBatch(count: self.rowCount * self.columnCount) { index in
-            let row = index / self.columnCount
-            let column = index % self.columnCount
-            self.rows[row].cells[column].content.renderCompactText(
-              baseURL: self.baseURL,
-              softBreakMode: self.softBreakMode,
-              cache: row == 0 ? headerCache : bodyCache
-            )
-            .multilineTextAlignment(alignments[column])
-          }
-        }
-      } else if allLeading {
-        ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
+      if allLeading {
+        StaticViewBatch(count: self.rowCount * self.columnCount) { index in
           let row = index / self.columnCount
           let column = index % self.columnCount
           self.rows[row].cells[column].content.renderCompactText(
@@ -238,7 +191,7 @@ private struct TableContentView: View {
           )
         }
       } else {
-        ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
+        StaticViewBatch(count: self.rowCount * self.columnCount) { index in
           let row = index / self.columnCount
           let column = index % self.columnCount
           self.rows[row].cells[column].content.renderCompactText(
