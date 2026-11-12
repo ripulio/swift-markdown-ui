@@ -145,7 +145,7 @@ public struct Theme: Equatable {
   }
 
   var headings = Array(
-    repeating: BlockStyle<BlockConfiguration> { $0.label },
+    repeating: BlockStyle<BlockConfiguration>.identity,
     count: 6
   )
 
@@ -192,7 +192,7 @@ public struct Theme: Equatable {
   public var blockquote = BlockStyle<BlockConfiguration>.identity
 
   /// The code block style.
-  public var codeBlock = BlockStyle<CodeBlockConfiguration> { $0.label }
+  public var codeBlock = BlockStyle<CodeBlockConfiguration>(isIdentity: true) { $0.label }
 
   /// The image style.
   public var image = BlockStyle<BlockConfiguration>.identity
@@ -216,10 +216,10 @@ public struct Theme: Equatable {
   public var table = BlockStyle<BlockConfiguration>.identity
 
   /// The table cell style.
-  public var tableCell = BlockStyle<TableCellConfiguration> { $0.label }
+  public var tableCell = BlockStyle<TableCellConfiguration>(isIdentity: true) { $0.label }
 
   /// The thematic break style.
-  public var thematicBreak = BlockStyle { Divider() }
+  public var thematicBreak = BlockStyle<Void>.withBlockMargin { Divider() }
 
   /// Creates a theme with default text styles.
   public init() {}
@@ -525,6 +525,25 @@ extension Theme {
 }
 
 extension Theme {
+  func resolveDeclarativeMargins(relativeTo fontProperties: FontProperties?) -> MarkdownBlockMargins {
+    MarkdownBlockMargins(
+      heading1: self.heading1.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      heading2: self.heading2.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      heading3: self.heading3.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      heading4: self.heading4.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      heading5: self.heading5.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      heading6: self.heading6.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      paragraph: self.paragraph.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      blockquote: self.blockquote.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      codeBlock: self.codeBlock.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      image: self.image.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      list: self.list.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      listItem: self.listItem.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      table: self.table.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified,
+      thematicBreak: self.thematicBreak.blockMargin?.resolve(relativeTo: fontProperties) ?? .unspecified
+    )
+  }
+
   /// The text background color of the theme extracted from the ``Theme/text`` style.
   public var textBackgroundColor: Color? {
     var attributes = AttributeContainer()

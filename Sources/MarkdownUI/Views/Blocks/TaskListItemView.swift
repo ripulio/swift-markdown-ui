@@ -3,6 +3,8 @@ import SwiftUI
 struct TaskListItemView: View {
   @Environment(\.theme.listItem) private var listItem
   @Environment(\.theme.taskListMarker) private var taskListMarker
+  @Environment(\.markdownBlockMargins) private var staticBlockMargins
+  @Environment(\.usesDeclarativeBlockMargins) private var usesDeclarativeBlockMargins
 
   private let item: RawTaskListItem
 
@@ -11,7 +13,8 @@ struct TaskListItemView: View {
   }
 
   var body: some View {
-    if self.listItem.isIdentity {
+    let canSkipMarginPreference = self.staticBlockMargins != nil || self.usesDeclarativeBlockMargins
+    if self.listItem.isIdentity || (self.listItem.isMarginOnly && canSkipMarginPreference) {
       self.label
     } else {
       self.listItem.makeBody(

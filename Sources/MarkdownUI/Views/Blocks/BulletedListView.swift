@@ -1,12 +1,11 @@
 import SwiftUI
 
 struct BulletedListView: View {
-  @Environment(\.theme.list) private var list
-  @Environment(\.theme.listItem) private var listItem
-  @Environment(\.theme.paragraph) private var paragraph
-  @Environment(\.theme.bulletedListMarker) private var bulletedListMarker
+  @Environment(\.theme) private var theme
   @Environment(\.listLevel) private var listLevel
   @Environment(\.markdownBlockMargins) private var staticBlockMargins
+  @Environment(\.isInsideDynamicBlockSequence) private var isInsideDynamicBlockSequence
+  @Environment(\.textStyleAttributes) private var textStyleAttributes
 
   private let isTight: Bool
   private let items: [RawListItem]
@@ -16,13 +15,28 @@ struct BulletedListView: View {
     self.items = items
   }
 
+  private var effectiveMargins: MarkdownBlockMargins? {
+    if let staticBlockMargins = self.staticBlockMargins {
+      return staticBlockMargins
+    }
+    guard !self.isInsideDynamicBlockSequence,
+      self.theme.list.hasDeclarativeMargin,
+      self.items.allSatisfy({ $0.supportsDeclarativeMargins(in: self.theme) })
+    else {
+      return nil
+    }
+    return self.theme.resolveDeclarativeMargins(
+      relativeTo: self.textStyleAttributes.fontProperties
+    )
+  }
+
   var body: some View {
-    if self.list.isIdentity {
+    if self.theme.list.isIdentity {
       if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
-        self.listItem.isIdentity,
-        let builtin = self.bulletedListMarker.builtinBulletMarker,
-        let margins = self.staticBlockMargins,
-        self.paragraph.paragraphLineSpacing != nil || self.paragraph.isIdentity,
+        self.theme.listItem.isIdentity || self.theme.listItem.isMarginOnly,
+        let builtin = self.theme.bulletedListMarker.builtinBulletMarker,
+        let margins = self.effectiveMargins,
+        self.theme.paragraph.paragraphLineSpacing != nil || self.theme.paragraph.isIdentity,
         let paragraphs = self.simpleParagraphItems
       {
         CompactBulletedListView(
@@ -31,13 +45,13 @@ struct BulletedListView: View {
           nextListLevel: self.listLevel + 1,
           builtinMarker: builtin,
           margins: margins,
-          paragraphLineSpacing: self.paragraph.paragraphLineSpacing
+          paragraphLineSpacing: self.theme.paragraph.paragraphLineSpacing
         )
       } else {
         self.label
       }
     } else {
-      self.list.makeBody(
+      self.theme.list.makeBody(
         configuration: .init(
           label: .init(self.label),
           content: .init(block: .bulletedList(isTight: self.isTight, items: self.items))
@@ -69,7 +83,7 @@ struct BulletedListView: View {
   private var label: some View {
     ListItemSequence(
       items: self.items,
-      markerStyle: self.bulletedListMarker,
+      markerStyle: self.theme.bulletedListMarker,
       readsMarkerWidth: false
     )
     .environment(\.listLevel, self.listLevel + 1)

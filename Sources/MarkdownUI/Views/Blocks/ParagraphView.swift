@@ -3,6 +3,8 @@ import SwiftUI
 struct ParagraphView: View {
   @Environment(\.theme.paragraph) private var paragraph
   @Environment(\.textStyleAttributes) private var textStyleAttributes
+  @Environment(\.markdownBlockMargins) private var staticBlockMargins
+  @Environment(\.usesDeclarativeBlockMargins) private var usesDeclarativeBlockMargins
 
   private let content: [InlineNode]
 
@@ -19,7 +21,10 @@ struct ParagraphView: View {
   }
 
   var body: some View {
-    if let lineSpacing = self.paragraph.paragraphLineSpacing {
+    let canSkipMarginPreference = self.staticBlockMargins != nil || self.usesDeclarativeBlockMargins
+    if let lineSpacing = self.paragraph.paragraphLineSpacing,
+      canSkipMarginPreference || self.paragraph.blockMargin == nil
+    {
       self.label
         .fixedSize(horizontal: false, vertical: true)
         .lineSpacing(lineSpacing.points(relativeTo: self.textStyleAttributes.fontProperties))

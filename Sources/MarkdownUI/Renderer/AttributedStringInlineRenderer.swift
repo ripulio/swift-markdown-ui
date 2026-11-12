@@ -172,6 +172,7 @@ enum InlineAttributesCache {
     let base: AttributeContainer
     let overrideWeight: Font.Weight?
     let overrideSize: RelativeSize?
+    let overrideForegroundColor: Color?
     let value: PrecomputedInlineAttributes
   }
 
@@ -182,7 +183,8 @@ enum InlineAttributesCache {
     attributes: AttributeContainer,
     inlineStyles: InlineTextStyles,
     overrideWeight: Font.Weight? = nil,
-    overrideSize: RelativeSize? = nil
+    overrideSize: RelativeSize? = nil,
+    overrideForegroundColor: Color? = nil
   ) -> PrecomputedInlineAttributes {
     let revision = inlineStyles.revision
     Self.lock.lock()
@@ -190,6 +192,7 @@ enum InlineAttributesCache {
       $0.inlineStylesRevision == revision
         && $0.overrideWeight == overrideWeight
         && $0.overrideSize == overrideSize
+        && $0.overrideForegroundColor == overrideForegroundColor
         && $0.base == attributes
     }) {
       let entry = Self.entries[hitIndex]
@@ -209,6 +212,9 @@ enum InlineAttributesCache {
     if let overrideSize {
       FontSize(overrideSize)._collectAttributes(in: &effective)
     }
+    if let overrideForegroundColor {
+      ForegroundColor(overrideForegroundColor)._collectAttributes(in: &effective)
+    }
     // Pre-warm every inline variant before publishing so cached instances are immutable on read.
     let built = PrecomputedInlineAttributes(
       attributes: effective,
@@ -226,6 +232,7 @@ enum InlineAttributesCache {
         base: attributes,
         overrideWeight: overrideWeight,
         overrideSize: overrideSize,
+        overrideForegroundColor: overrideForegroundColor,
         value: built
       ),
       at: 0

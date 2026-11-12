@@ -15,8 +15,26 @@ extension EnvironmentValues {
     get { self[MarkdownBlockMarginsKey.self] }
     set { self[MarkdownBlockMarginsKey.self] = newValue }
   }
+
+  var usesDeclarativeBlockMargins: Bool {
+    get { self[UsesDeclarativeBlockMarginsKey.self] }
+    set { self[UsesDeclarativeBlockMarginsKey.self] = newValue }
+  }
+
+  var isInsideDynamicBlockSequence: Bool {
+    get { self[IsInsideDynamicBlockSequenceKey.self] }
+    set { self[IsInsideDynamicBlockSequenceKey.self] = newValue }
+  }
 }
 
 private struct MarkdownBlockMarginsKey: EnvironmentKey {
   static let defaultValue: MarkdownBlockMargins? = nil
+}
+
+private struct UsesDeclarativeBlockMarginsKey: EnvironmentKey {
+  static let defaultValue = false
+}
+
+private struct IsInsideDynamicBlockSequenceKey: EnvironmentKey {
+  static let defaultValue = false
 }

@@ -14,72 +14,98 @@ extension Theme {
   /// Bulleted list | ![](DocCNestedBulletedList)
   /// Numbered list | ![](DocCNumberedList)
   /// Table | ![](DocCTable)
-  public static let docC = Theme()
-    .text {
-      ForegroundColor(.text)
-    }
-    .link {
-      ForegroundColor(.link)
-    }
-    .heading1 { configuration in
-      configuration.label
-        .markdownMargin(top: .em(0.8), bottom: .zero)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(2))
-        }
-    }
-    .heading2 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.0625))
-        .markdownMargin(top: .em(1.6), bottom: .zero)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(1.88235))
-        }
-    }
-    .heading3 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.07143))
-        .markdownMargin(top: .em(1.6), bottom: .zero)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(1.64706))
-        }
-    }
-    .heading4 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.083335))
-        .markdownMargin(top: .em(1.6), bottom: .zero)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(1.41176))
-        }
-    }
-    .heading5 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.09091))
-        .markdownMargin(top: .em(1.6), bottom: .zero)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(1.29412))
-        }
-    }
-    .heading6 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.235295))
-        .markdownMargin(top: .em(1.6), bottom: .zero)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-        }
-    }
-    .paragraph { configuration in
-      configuration.label
-        .fixedSize(horizontal: false, vertical: true)
-        .relativeLineSpacing(.em(0.235295))
-        .markdownMargin(top: .em(0.8), bottom: .zero)
-    }
-    .blockquote { configuration in
+  public static let docC: Theme = {
+    var theme = Theme()
+      .text {
+        ForegroundColor(.text)
+      }
+      .link {
+        ForegroundColor(.link)
+      }
+      .taskListMarker { _ in
+        // DocC renders task lists as bullet lists
+        ListBullet.disc
+          .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
+      }
+      .tableCell { configuration in
+        configuration.label
+          .markdownTextStyle {
+            if configuration.row == 0 {
+              FontWeight(.semibold)
+            }
+          }
+          .fixedSize(horizontal: false, vertical: true)
+          .relativeLineSpacing(.em(0.235295))
+          .relativePadding(length: .rem(0.58824))
+      }
+
+    theme.heading1 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(2),
+      attachesAnchorID: true,
+      topMargin: .relative(.em(0.8)),
+      bottomMargin: .relative(.zero),
+      scalesMarginToHeadingFont: true
+    )
+    theme.heading2 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(1.88235),
+      lineSpacing: .em(0.0625),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .relative(.em(1.6)),
+      bottomMargin: .relative(.zero),
+      scalesMarginToHeadingFont: true
+    )
+    theme.heading3 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(1.64706),
+      lineSpacing: .em(0.07143),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .relative(.em(1.6)),
+      bottomMargin: .relative(.zero),
+      scalesMarginToHeadingFont: true
+    )
+    theme.heading4 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(1.41176),
+      lineSpacing: .em(0.083335),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .relative(.em(1.6)),
+      bottomMargin: .relative(.zero),
+      scalesMarginToHeadingFont: true
+    )
+    theme.heading5 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(1.29412),
+      lineSpacing: .em(0.09091),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .relative(.em(1.6)),
+      bottomMargin: .relative(.zero),
+      scalesMarginToHeadingFont: true
+    )
+    theme.heading6 = .heading(
+      fontWeight: .semibold,
+      fontSize: nil,
+      lineSpacing: .em(0.235295),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .relative(.em(1.6)),
+      bottomMargin: .relative(.zero),
+      scalesMarginToHeadingFont: true
+    )
+    theme.paragraph = .paragraph(
+      lineSpacing: .em(0.235295),
+      topMargin: .relative(.em(0.8)),
+      bottomMargin: .relative(.zero)
+    )
+    theme.blockquote = .withBlockMargin(
+      top: .relative(.em(1.6)),
+      bottom: .relative(.zero)
+    ) { configuration in
       configuration.label
         .relativePadding(length: .rem(0.94118))
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -91,9 +117,11 @@ extension Theme {
               .strokeBorder(Color.asideNoteBorder)
           }
         }
-        .markdownMargin(top: .em(1.6), bottom: .zero)
     }
-    .codeBlock { configuration in
+    theme.codeBlock = .withBlockMargin(
+      top: .relative(.em(0.8)),
+      bottom: .relative(.zero)
+    ) { configuration in
       ScrollView(.horizontal) {
         configuration.label
           .fixedSize(horizontal: false, vertical: true)
@@ -107,44 +135,32 @@ extension Theme {
       }
       .background(Color.codeBackground)
       .clipShape(.container)
-      .markdownMargin(top: .em(0.8), bottom: .zero)
     }
-    .image { configuration in
+    theme.image = .withBlockMargin(
+      top: .relative(.em(1.6)),
+      bottom: .relative(.em(1.6))
+    ) { configuration in
       configuration.label
         .frame(maxWidth: .infinity)
-        .markdownMargin(top: .em(1.6), bottom: .em(1.6))
     }
-    .listItem { configuration in
-      configuration.label
-        .markdownMargin(top: .em(0.8))
-    }
-    .taskListMarker { _ in
-      // DocC renders task lists as bullet lists
-      ListBullet.disc
-        .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
-    }
-    .table { configuration in
+    theme.listItem = .listItem(topMargin: .relative(.em(0.8)))
+    theme.table = .withBlockMargin(
+      top: .relative(.em(1.6)),
+      bottom: .relative(.zero)
+    ) { configuration in
       configuration.label
         .fixedSize(horizontal: false, vertical: true)
         .markdownTableBorderStyle(.init(.horizontalBorders, color: .grid))
-        .markdownMargin(top: .em(1.6), bottom: .zero)
     }
-    .tableCell { configuration in
-      configuration.label
-        .markdownTextStyle {
-          if configuration.row == 0 {
-            FontWeight(.semibold)
-          }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .relativeLineSpacing(.em(0.235295))
-        .relativePadding(length: .rem(0.58824))
-    }
-    .thematicBreak {
+    theme.thematicBreak = .withBlockMargin(
+      top: .relative(.em(2.35)),
+      bottom: .relative(.em(2.35))
+    ) {
       Divider()
         .overlay(Color.grid)
-        .markdownMargin(top: .em(2.35), bottom: .em(2.35))
     }
+    return theme
+  }()
 }
 
 extension Shape where Self == RoundedRectangle {

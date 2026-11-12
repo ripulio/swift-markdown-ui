@@ -324,13 +324,13 @@
           host.removeFromParent()
         }
 
-        let s1 = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
+        let s1 = host.sizeThatFits(in: CGSize(width: 400, height: CGFloat.greatestFiniteMagnitude))
         host.view.frame = CGRect(x: 0, y: 0, width: 400, height: ceil(s1.height))
         host.view.setNeedsLayout()
         host.view.layoutIfNeeded()
         let afterFirstLayout = _BulletedListLayoutDebug.snapshot()
         // Repeat sizeThatFits + layout without content changes: multi-width cache must hit with 0 new measures or probe stores.
-        _ = host.sizeThatFits(in: CGSize(width: 400, height: .greatestFiniteMagnitude))
+        _ = host.sizeThatFits(in: CGSize(width: 400, height: CGFloat.greatestFiniteMagnitude))
         host.view.setNeedsLayout()
         host.view.layoutIfNeeded()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))

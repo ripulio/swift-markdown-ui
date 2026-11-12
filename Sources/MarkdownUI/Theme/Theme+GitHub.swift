@@ -14,29 +14,50 @@ extension Theme {
   /// Bulleted list | ![](GitHubNestedBulletedList)
   /// Numbered list | ![](GitHubNumberedList)
   /// Table | ![](GitHubTable)
-  public static let gitHub = Theme()
-    .text {
-      ForegroundColor(.text)
-      BackgroundColor(.background)
-      FontSize(16)
-    }
-    .code {
-      FontFamilyVariant(.monospaced)
-      FontSize(.em(0.85))
-      BackgroundColor(.secondaryBackground)
-    }
-    .strong {
-      FontWeight(.semibold)
-    }
-    .link {
-      ForegroundColor(.link)
-    }
-    .heading1 { configuration in
+  public static let gitHub: Theme = {
+    var theme = Theme()
+      .text {
+        ForegroundColor(.text)
+        BackgroundColor(.background)
+        FontSize(16)
+      }
+      .code {
+        FontFamilyVariant(.monospaced)
+        FontSize(.em(0.85))
+        BackgroundColor(.secondaryBackground)
+      }
+      .strong {
+        FontWeight(.semibold)
+      }
+      .link {
+        ForegroundColor(.link)
+      }
+      .taskListMarker { configuration in
+        Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
+          .symbolRenderingMode(.hierarchical)
+          .foregroundStyle(Color.checkbox, Color.checkboxBackground)
+          .imageScale(.small)
+          .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
+      }
+      .tableCell { configuration in
+        configuration.label
+          .markdownTextStyle {
+            if configuration.row == 0 {
+              FontWeight(.semibold)
+            }
+            BackgroundColor(nil)
+          }
+          .fixedSize(horizontal: false, vertical: true)
+          .padding(.vertical, 6)
+          .padding(.horizontal, 13)
+          .relativeLineSpacing(.em(0.25))
+      }
+
+    theme.heading1 = .withBlockMargin(top: .points(24), bottom: .points(16)) { configuration in
       VStack(alignment: .leading, spacing: 0) {
         configuration.label
           .relativePadding(.bottom, length: .em(0.3))
           .relativeLineSpacing(.em(0.125))
-          .markdownMargin(top: 24, bottom: 16)
           .markdownTextStyle {
             FontWeight(.semibold)
             FontSize(.em(2))
@@ -44,12 +65,11 @@ extension Theme {
         Divider().overlay(Color.divider)
       }
     }
-    .heading2 { configuration in
+    theme.heading2 = .withBlockMargin(top: .points(24), bottom: .points(16)) { configuration in
       VStack(alignment: .leading, spacing: 0) {
         configuration.label
           .relativePadding(.bottom, length: .em(0.3))
           .relativeLineSpacing(.em(0.125))
-          .markdownMargin(top: 24, bottom: 16)
           .markdownTextStyle {
             FontWeight(.semibold)
             FontSize(.em(1.5))
@@ -57,49 +77,49 @@ extension Theme {
         Divider().overlay(Color.divider)
       }
     }
-    .heading3 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.125))
-        .markdownMargin(top: 24, bottom: 16)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(1.25))
-        }
-    }
-    .heading4 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.125))
-        .markdownMargin(top: 24, bottom: 16)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-        }
-    }
-    .heading5 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.125))
-        .markdownMargin(top: 24, bottom: 16)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(0.875))
-        }
-    }
-    .heading6 { configuration in
-      configuration.label
-        .relativeLineSpacing(.em(0.125))
-        .markdownMargin(top: 24, bottom: 16)
-        .markdownTextStyle {
-          FontWeight(.semibold)
-          FontSize(.em(0.85))
-          ForegroundColor(.tertiaryText)
-        }
-    }
-    .paragraph { configuration in
-      configuration.label
-        .fixedSize(horizontal: false, vertical: true)
-        .relativeLineSpacing(.em(0.25))
-        .markdownMargin(top: 0, bottom: 16)
-    }
-    .blockquote { configuration in
+    theme.heading3 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(1.25),
+      lineSpacing: .em(0.125),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .points(24),
+      bottomMargin: .points(16)
+    )
+    theme.heading4 = .heading(
+      fontWeight: .semibold,
+      fontSize: nil,
+      lineSpacing: .em(0.125),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .points(24),
+      bottomMargin: .points(16)
+    )
+    theme.heading5 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(0.875),
+      lineSpacing: .em(0.125),
+      scalesLineSpacingToHeadingFont: true,
+      attachesAnchorID: true,
+      topMargin: .points(24),
+      bottomMargin: .points(16)
+    )
+    theme.heading6 = .heading(
+      fontWeight: .semibold,
+      fontSize: .em(0.85),
+      lineSpacing: .em(0.125),
+      scalesLineSpacingToHeadingFont: true,
+      foregroundColor: .tertiaryText,
+      attachesAnchorID: true,
+      topMargin: .points(24),
+      bottomMargin: .points(16)
+    )
+    theme.paragraph = .paragraph(
+      lineSpacing: .em(0.25),
+      topMargin: .points(0),
+      bottomMargin: .points(16)
+    )
+    theme.blockquote = .withBlockMargin { configuration in
       HStack(spacing: 0) {
         RoundedRectangle(cornerRadius: 6)
           .fill(Color.border)
@@ -110,7 +130,7 @@ extension Theme {
       }
       .fixedSize(horizontal: false, vertical: true)
     }
-    .codeBlock { configuration in
+    theme.codeBlock = .withBlockMargin(top: .points(0), bottom: .points(16)) { configuration in
       ScrollView(.horizontal) {
         configuration.label
           .fixedSize(horizontal: false, vertical: true)
@@ -123,47 +143,23 @@ extension Theme {
       }
       .background(Color.secondaryBackground)
       .clipShape(RoundedRectangle(cornerRadius: 6))
-      .markdownMargin(top: 0, bottom: 16)
     }
-    .listItem { configuration in
-      configuration.label
-        .markdownMargin(top: .em(0.25))
-    }
-    .taskListMarker { configuration in
-      Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
-        .symbolRenderingMode(.hierarchical)
-        .foregroundStyle(Color.checkbox, Color.checkboxBackground)
-        .imageScale(.small)
-        .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
-    }
-    .table { configuration in
+    theme.listItem = .listItem(topMargin: .relative(.em(0.25)))
+    theme.table = .withBlockMargin(top: .points(0), bottom: .points(16)) { configuration in
       configuration.label
         .fixedSize(horizontal: false, vertical: true)
         .markdownTableBorderStyle(.init(color: .border))
         .markdownTableBackgroundStyle(
           .alternatingRows(Color.background, Color.secondaryBackground)
         )
-        .markdownMargin(top: 0, bottom: 16)
     }
-    .tableCell { configuration in
-      configuration.label
-        .markdownTextStyle {
-          if configuration.row == 0 {
-            FontWeight(.semibold)
-          }
-          BackgroundColor(nil)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 13)
-        .relativeLineSpacing(.em(0.25))
-    }
-    .thematicBreak {
+    theme.thematicBreak = .withBlockMargin(top: .points(24), bottom: .points(24)) {
       Divider()
         .relativeFrame(height: .em(0.25))
         .overlay(Color.border)
-        .markdownMargin(top: 24, bottom: 24)
     }
+    return theme
+  }()
 }
 
 extension Color {

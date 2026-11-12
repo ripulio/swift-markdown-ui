@@ -126,9 +126,43 @@ public struct MarkdownBlockMargins: Equatable, Sendable {
 
 protocol BlockMarginElement: Hashable {
   func effectiveMargin(using margins: MarkdownBlockMargins, inlineImageFlow: Bool) -> BlockMargin
+  func supportsDeclarativeMargins(in theme: Theme) -> Bool
 }
 
 extension BlockNode: BlockMarginElement {
+  func supportsDeclarativeMargins(in theme: Theme) -> Bool {
+    switch self {
+    case .blockquote(let children):
+      return theme.blockquote.hasDeclarativeMargin
+        && children.allSatisfy { $0.supportsDeclarativeMargins(in: theme) }
+    case .bulletedList(_, let items), .numberedList(_, _, let items):
+      return theme.list.hasDeclarativeMargin
+        && items.allSatisfy { $0.supportsDeclarativeMargins(in: theme) }
+    case .taskList(_, let items):
+      return theme.list.hasDeclarativeMargin
+        && items.allSatisfy { $0.supportsDeclarativeMargins(in: theme) }
+    case .codeBlock:
+      return theme.codeBlock.hasDeclarativeMargin
+    case .htmlBlock:
+      return theme.paragraph.hasDeclarativeMargin
+    case .paragraph(let content):
+      return theme.paragraph.hasDeclarativeMargin
+        && (!content.containsImageView || theme.image.hasDeclarativeMargin)
+    case .heading(let level, let content):
+      return theme.headings[level - 1].hasDeclarativeMargin
+        && (!content.containsImageView || theme.image.hasDeclarativeMargin)
+    case .table(_, let rows):
+      guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else {
+        return true
+      }
+      return theme.table.hasDeclarativeMargin
+        && (theme.image.hasDeclarativeMargin
+          || !rows.contains(where: { $0.cells.contains(where: { $0.content.containsImageFlow }) }))
+    case .thematicBreak:
+      return theme.thematicBreak.hasDeclarativeMargin
+    }
+  }
+
   func effectiveMargin(using margins: MarkdownBlockMargins, inlineImageFlow: Bool) -> BlockMargin {
     switch self {
     case .blockquote(let children):
@@ -175,6 +209,11 @@ extension BlockNode: BlockMarginElement {
 }
 
 extension RawListItem: BlockMarginElement {
+  func supportsDeclarativeMargins(in theme: Theme) -> Bool {
+    theme.listItem.hasDeclarativeMargin
+      && self.children.allSatisfy { $0.supportsDeclarativeMargins(in: theme) }
+  }
+
   func effectiveMargin(using margins: MarkdownBlockMargins, inlineImageFlow: Bool) -> BlockMargin {
     self.children.reduce(margins.listItem) {
       $0.combined(with: $1.effectiveMargin(using: margins, inlineImageFlow: inlineImageFlow))
@@ -183,6 +222,11 @@ extension RawListItem: BlockMarginElement {
 }
 
 extension RawTaskListItem: BlockMarginElement {
+  func supportsDeclarativeMargins(in theme: Theme) -> Bool {
+    theme.listItem.hasDeclarativeMargin
+      && self.children.allSatisfy { $0.supportsDeclarativeMargins(in: theme) }
+  }
+
   func effectiveMargin(using margins: MarkdownBlockMargins, inlineImageFlow: Bool) -> BlockMargin {
     self.children.reduce(margins.listItem) {
       $0.combined(with: $1.effectiveMargin(using: margins, inlineImageFlow: inlineImageFlow))

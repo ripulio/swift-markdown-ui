@@ -10,9 +10,11 @@ where
   @Environment(\.tightSpacingEnabled) private var tightSpacingEnabled
   @Environment(\.markdownBlockPath) private var blockPath
   @Environment(\.markdownBlockMargins) private var staticBlockMargins
+  @Environment(\.isInsideDynamicBlockSequence) private var isInsideDynamicBlockSequence
   @Environment(\.inlineImageFlow) private var inlineImageFlow
   @Environment(\.listLevel) private var listLevel
-  @Environment(\.theme.paragraph) private var paragraph
+  @Environment(\.theme) private var theme
+  @Environment(\.textStyleAttributes) private var textStyleAttributes
 
   private let data: [Indexed<Data.Element>]
   private let content: (Int, Data.Element) -> Content
@@ -36,19 +38,33 @@ where
     self.rawBlocks = rawBlocks
   }
 
-  var body: some View {
+  private var effectiveMargins: MarkdownBlockMargins? {
     if let staticBlockMargins = self.staticBlockMargins {
+      return staticBlockMargins
+    }
+    guard !self.isInsideDynamicBlockSequence,
+      self.data.allSatisfy({ $0.value.supportsDeclarativeMargins(in: self.theme) })
+    else {
+      return nil
+    }
+    return self.theme.resolveDeclarativeMargins(
+      relativeTo: self.textStyleAttributes.fontProperties
+    )
+  }
+
+  var body: some View {
+    if let effectiveMargins = self.effectiveMargins {
       if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
-        self.paragraph.paragraphLineSpacing != nil || self.paragraph.isIdentity,
+        self.theme.paragraph.paragraphLineSpacing != nil || self.theme.paragraph.isIdentity,
         let rawBlocks = self.rawBlocks,
         let paragraphs = Self.simpleParagraphBlocks(rawBlocks)
       {
         CompactParagraphSequenceView(
           paragraphs: paragraphs,
-          margins: staticBlockMargins,
+          margins: effectiveMargins,
           textAlignment: self.textAlignment,
           tightSpacingEnabled: self.tightSpacingEnabled,
-          paragraphLineSpacing: self.paragraph.paragraphLineSpacing
+          paragraphLineSpacing: self.theme.paragraph.paragraphLineSpacing
         )
       } else if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
         self.listLevel == 0,
@@ -56,7 +72,7 @@ where
         !rawBlocks.isEmpty,
         let topSpacings = DirectBlockSequenceView.computeTopSpacings(
           rawBlocks: rawBlocks,
-          margins: staticBlockMargins,
+          margins: effectiveMargins,
           inlineImageFlow: self.inlineImageFlow,
           tightSpacingEnabled: self.tightSpacingEnabled
         )
@@ -64,7 +80,7 @@ where
         DirectBlockSequenceView(
           rawBlocks: rawBlocks,
           topSpacings: topSpacings,
-          margins: staticBlockMargins,
+          margins: effectiveMargins,
           textAlignment: self.textAlignment,
           blockPath: self.blockPath
         )
@@ -72,12 +88,13 @@ where
         StaticBlockSequenceContent(
           data: self.data,
           content: self.content,
-          margins: staticBlockMargins,
+          margins: effectiveMargins,
           inlineImageFlow: self.inlineImageFlow,
           textAlignment: self.textAlignment,
           tightSpacingEnabled: self.tightSpacingEnabled,
           blockPath: self.blockPath
         )
+        .environment(\.usesDeclarativeBlockMargins, true)
       }
     } else {
       DynamicBlockSequenceContent(
@@ -87,6 +104,8 @@ where
         tightSpacingEnabled: self.tightSpacingEnabled,
         blockPath: self.blockPath
       )
+      .environment(\.isInsideDynamicBlockSequence, true)
+      .environment(\.usesDeclarativeBlockMargins, false)
     }
   }
 
@@ -473,6 +492,7 @@ private struct DirectBlockSequenceView: View {
     let text: Text
     let lineSpacing: CGFloat
     let needsVerticalFixedSize: Bool
+    let anchorID: String?
   }
 
   fileprivate enum DirectItem {
@@ -560,7 +580,7 @@ private struct DirectBlockSequenceView: View {
     )
     let canCompactList =
       self.theme.list.isIdentity
-      && self.theme.listItem.isIdentity
+      && (self.theme.listItem.isIdentity || self.theme.listItem.isMarginOnly)
       && canDirectParagraph
     let builtinBullet = self.theme.bulletedListMarker.builtinBulletMarker
 
@@ -595,7 +615,8 @@ private struct DirectBlockSequenceView: View {
             ProseItem(
               text: text,
               lineSpacing: resolvedParagraphLineSpacing ?? self.environmentLineSpacing,
-              needsVerticalFixedSize: resolvedParagraphLineSpacing != nil
+              needsVerticalFixedSize: resolvedParagraphLineSpacing != nil,
+              anchorID: nil
             )
           )
         )
@@ -608,13 +629,14 @@ private struct DirectBlockSequenceView: View {
         {
           let spec = headingStyle.headingSpec
           let cache =
-            (spec?.fontWeight == nil && spec?.fontSize == nil)
+            (spec?.fontWeight == nil && spec?.fontSize == nil && spec?.foregroundColor == nil)
             ? getBodyCache()
             : InlineAttributesCache.lookup(
               attributes: self.textStyleAttributes,
               inlineStyles: inlineStyles,
               overrideWeight: spec?.fontWeight,
-              overrideSize: spec?.fontSize
+              overrideSize: spec?.fontSize,
+              overrideForegroundColor: spec?.foregroundColor
             )
           let text = inlines.renderCompactText(
             baseURL: self.baseURL,
@@ -622,13 +644,16 @@ private struct DirectBlockSequenceView: View {
             cache: cache
           )
           let resolvedHeadingSpacing =
-            spec?.lineSpacing?.points(relativeTo: fontProperties) ?? self.environmentLineSpacing
+            spec?.resolvedLineSpacing(relativeTo: fontProperties) ?? self.environmentLineSpacing
+          let anchorID =
+            (spec?.attachesAnchorID == true) ? inlines.renderPlainText().kebabCased() : nil
           items.append(
             .prose(
               ProseItem(
                 text: text,
                 lineSpacing: resolvedHeadingSpacing,
-                needsVerticalFixedSize: false
+                needsVerticalFixedSize: false,
+                anchorID: anchorID
               )
             )
           )
@@ -684,9 +709,13 @@ private struct DirectBlockSequenceView: View {
     allProse: Bool,
     paragraphLineSpacing: RelativeSize?
   ) -> some View {
+    let hasAnchorID = items.contains {
+      if case .prose(let prose) = $0 { return prose.anchorID != nil }
+      return false
+    }
     if items.count == 1 {
       self.singleItemView(items[0], paragraphLineSpacing: paragraphLineSpacing)
-    } else if allProse {
+    } else if allProse && !hasAnchorID {
       BlockSpacedStackLayout(
         alignment: self.textAlignment,
         topSpacings: self.topSpacings
@@ -694,6 +723,17 @@ private struct DirectBlockSequenceView: View {
         StaticViewBatch(count: items.count) { index in
           if case .prose(let prose) = items[index] {
             prose.text.lineSpacing(prose.lineSpacing)
+          }
+        }
+      }
+    } else if allProse {
+      BlockSpacedStackLayout(
+        alignment: self.textAlignment,
+        topSpacings: self.topSpacings
+      ) {
+        StaticViewBatch(count: items.count) { index in
+          if case .prose(let prose) = items[index] {
+            self.proseItemView(prose)
           }
         }
       }
@@ -706,6 +746,17 @@ private struct DirectBlockSequenceView: View {
           self.mixedItemView(items[index], paragraphLineSpacing: paragraphLineSpacing)
         }
       }
+      .environment(\.usesDeclarativeBlockMargins, true)
+    }
+  }
+
+  @ViewBuilder private func proseItemView(_ prose: ProseItem) -> some View {
+    if let anchorID = prose.anchorID {
+      prose.text
+        .lineSpacing(prose.lineSpacing)
+        .id(anchorID)
+    } else {
+      prose.text.lineSpacing(prose.lineSpacing)
     }
   }
 
@@ -716,14 +767,22 @@ private struct DirectBlockSequenceView: View {
     switch item {
     case .prose(let prose):
       if prose.needsVerticalFixedSize {
-        prose.text
-          .fixedSize(horizontal: false, vertical: true)
-          .lineSpacing(prose.lineSpacing)
+        if let anchorID = prose.anchorID {
+          prose.text
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(prose.lineSpacing)
+            .id(anchorID)
+        } else {
+          prose.text
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(prose.lineSpacing)
+        }
       } else {
-        prose.text.lineSpacing(prose.lineSpacing)
+        self.proseItemView(prose)
       }
     default:
       self.mixedItemView(item, paragraphLineSpacing: paragraphLineSpacing)
+        .environment(\.usesDeclarativeBlockMargins, true)
     }
   }
 
@@ -733,7 +792,7 @@ private struct DirectBlockSequenceView: View {
   ) -> some View {
     switch item {
     case .prose(let prose):
-      prose.text.lineSpacing(prose.lineSpacing)
+      self.proseItemView(prose)
     case let .bulletedList(paragraphs, isTight, builtinMarker):
       CompactBulletedListView(
         paragraphs: paragraphs,

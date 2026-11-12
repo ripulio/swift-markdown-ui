@@ -28,8 +28,8 @@ Consumers should pin a release tag or commit, rather than the moving branch.
 For upstream updates, rebase this branch and run `swift test`. On macOS 27 with
 Xcode 27.1, the unchanged upstream `FontPropertiesTests` fails eight opaque SwiftUI
 `Font` equality assertions (reproduced on the unmodified 2.4.1 tag).
-`swift test --skip FontPropertiesTests` runs the remaining 80 tests, including the
-new regression, static-margin, and pixel-parity tests. The macOS hosted
+`swift test --skip FontPropertiesTests` runs the remaining 89 tests, including the
+new regression, static-margin, built-in theme fast-path, and pixel-parity tests. The macOS hosted
 view tests check actual view reuse while the Markdown changes; parser fixtures
 cover longer fences, nested code and document-wide reference links. Hosted table
 checks cover actual wrapping, column widths, text alignment, full row bounds,
@@ -142,6 +142,24 @@ custom `BlockStyle` closure automatically falls back to the general path.
     `hasImages` at parse time so image-free documents skip
     `filterImagesMatching`; and `hasMultipleTextChunks` checks line-break
     chunking without array allocation.
+- **2.5.0 — Zero-config built-in themes and `Theme.chat`:**
+  - Upgrades built-in `Theme.basic`, `Theme.gitHub`, and `Theme.docC` to
+    declarative `RelativeBlockMargin`, `HeadingStyleSpec` (including heading-scaled
+    line spacing/margins, heading foreground colour, and kebab-case `.id` anchors),
+    declarative `paragraph(lineSpacing:topMargin:bottomMargin:)`, and margin-only
+    `listItem` styles. `BlockSequence` and `BulletedListView` automatically
+    resolve single-pass `MarkdownBlockMargins` from the active `Theme` whenever
+    every block in the subtree uses declarative or identity margins, while any
+    custom `.markdownBlockStyle(...)` closure falls back cleanly to dynamic
+    `BlockMarginsPreference` reduction (`BuiltInThemesFastPathTests`).
+  - Adds `Theme.chat` (`Markdown(text).markdownTheme(.chat)`), activating all
+    single-pass prose/list/heading fast paths plus viewport-aware horizontal
+    scrolling GFM tables (`ChatAdaptiveTableView` + `AdaptiveTableLayout` +
+    shape-batched borders and alternating row fills) and language-labelled code
+    cards out of the box.
+  - Adds `Examples/BenchmarkApp` (XcodeGen iOS/macOS app) for reproducing cold
+    host layout timings, `Δ 0.0pt` single-pass height convergence, and 60–120 Hz
+    token streaming on device.
 
 ### Safety invariants for future fork changes
 

@@ -2,16 +2,15 @@ name: CI
 on:
   push:
     branches:
+      - ripul
       - main
   pull_request:
     branches:
       - '*'
 jobs:
   tests:
-    runs-on: macos-12
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v2
-      - name: Select Xcode 14.2
-        run: sudo xcode-select -s /Applications/Xcode_14.2.app
-      - name: Run tests
-        run: make test
+      - uses: actions/checkout@v4
+      - name: Run package tests
+        run: swift test --skip FontPropertiesTests

@@ -4,6 +4,8 @@ struct ListItemView: View {
   @Environment(\.theme.listItem) private var listItem
   @Environment(\.listLevel) private var listLevel
   @Environment(\.textStyleAttributes) private var textStyleAttributes
+  @Environment(\.markdownBlockMargins) private var staticBlockMargins
+  @Environment(\.usesDeclarativeBlockMargins) private var usesDeclarativeBlockMargins
 
   private let item: RawListItem
   private let number: Int
@@ -26,7 +28,8 @@ struct ListItemView: View {
   }
 
   var body: some View {
-    if self.listItem.isIdentity {
+    let canSkipMarginPreference = self.staticBlockMargins != nil || self.usesDeclarativeBlockMargins
+    if self.listItem.isIdentity || (self.listItem.isMarginOnly && canSkipMarginPreference) {
       self.label
     } else {
       self.listItem.makeBody(

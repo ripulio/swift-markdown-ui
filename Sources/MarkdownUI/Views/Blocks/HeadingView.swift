@@ -6,6 +6,8 @@ struct HeadingView: View {
   @Environment(\.textStyleAttributes) private var textStyleAttributes
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
+  @Environment(\.markdownBlockMargins) private var staticBlockMargins
+  @Environment(\.usesDeclarativeBlockMargins) private var usesDeclarativeBlockMargins
 
   private let level: Int
   private let content: [InlineNode]
@@ -17,7 +19,9 @@ struct HeadingView: View {
 
   var body: some View {
     let style = self.headings[self.level - 1]
+    let canSkipMarginPreference = self.staticBlockMargins != nil || self.usesDeclarativeBlockMargins
     if style.headingSpec != nil || style.isIdentity,
+      canSkipMarginPreference || style.blockMargin == nil,
       !self.content.contains(where: \.containsImage),
       !self.content.hasMultipleTextChunks(softBreakMode: self.softBreakMode)
     {
@@ -26,18 +30,15 @@ struct HeadingView: View {
         attributes: self.textStyleAttributes,
         inlineStyles: self.inlineStyles,
         overrideWeight: spec?.fontWeight,
-        overrideSize: spec?.fontSize
+        overrideSize: spec?.fontSize,
+        overrideForegroundColor: spec?.foregroundColor
       )
       let text = self.content.renderCompactText(
         baseURL: self.baseURL,
         softBreakMode: self.softBreakMode,
         cache: cache
       )
-      if let lineSpacing = spec?.lineSpacing {
-        text.lineSpacing(lineSpacing.points(relativeTo: self.textStyleAttributes.fontProperties))
-      } else {
-        text
-      }
+      self.styledHeading(text: text, spec: spec)
     } else {
       style.makeBody(
         configuration: .init(
@@ -46,6 +47,28 @@ struct HeadingView: View {
         )
       )
       .id(content.renderPlainText().kebabCased())
+    }
+  }
+
+  @ViewBuilder private func styledHeading(
+    text: Text,
+    spec: BlockStyle<BlockConfiguration>.HeadingStyleSpec?
+  ) -> some View {
+    let resolvedLineSpacing = spec?.resolvedLineSpacing(
+      relativeTo: self.textStyleAttributes.fontProperties
+    )
+    if let resolvedLineSpacing {
+      if spec?.attachesAnchorID == true {
+        text
+          .lineSpacing(resolvedLineSpacing)
+          .id(self.content.renderPlainText().kebabCased())
+      } else {
+        text.lineSpacing(resolvedLineSpacing)
+      }
+    } else if spec?.attachesAnchorID == true {
+      text.id(self.content.renderPlainText().kebabCased())
+    } else {
+      text
     }
   }
 }
