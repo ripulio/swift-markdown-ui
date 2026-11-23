@@ -160,6 +160,17 @@ custom `BlockStyle` closure automatically falls back to the general path.
   - Adds `Examples/BenchmarkApp` (XcodeGen iOS/macOS app) for reproducing cold
     host layout timings, `Δ 0.0pt` single-pass height convergence, and 60–120 Hz
     token streaming on device.
+- **iOS list link hit-testing fix (November 2026):**
+  - On iOS, SwiftUI's `.textSelection(.enabled)` gives each selectable `Text` a
+    `±16 pt` expanded hit-test responder while its backing
+    `TextSelectionInteractionView` only accepts hits inside its exact text
+    bounds, causing a following list item to eclipse links on the item above it.
+  - `CompactBulletedListView`, `BulletedListView`, `NumberedListView`, and
+    `TaskListView` now apply `.textSelection(.disabled)` on `#if os(iOS)` when
+    any item (or non-final block inside an item) contains a link followed by
+    another item or block in the same list (`hasOccludedListLink`). Prose,
+    link-free lists, and lists with a link only in the last item keep text
+    selection unchanged, and rendered pixels and layouts are unchanged.
 
 ### Safety invariants for future fork changes
 

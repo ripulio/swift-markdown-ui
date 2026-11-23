@@ -88,6 +88,7 @@ struct BulletedListView: View {
     )
     .environment(\.listLevel, self.listLevel + 1)
     .environment(\.tightSpacingEnabled, self.isTight)
+    .disableTextSelectionForOccludedListLinks(self.items.hasOccludedListLink)
   }
 }
 
@@ -144,12 +145,19 @@ struct CompactBulletedListView: View {
       cachedProbe: cachedProbe
     )
 
+    let disablesSelection = self.paragraphs.dropLast().contains {
+      $0.contains(where: \.containsLink)
+    }
+
     if let paragraphLineSpacing = self.paragraphLineSpacing {
-      listBody.lineSpacing(
-        paragraphLineSpacing.points(relativeTo: fontProperties)
-      )
+      listBody
+        .lineSpacing(
+          paragraphLineSpacing.points(relativeTo: fontProperties)
+        )
+        .disableTextSelectionForOccludedListLinks(disablesSelection)
     } else {
       listBody
+        .disableTextSelectionForOccludedListLinks(disablesSelection)
     }
   }
 

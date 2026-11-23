@@ -61,4 +61,16 @@ extension InlineNode {
       return false
     }
   }
+
+  var containsLink: Bool {
+    switch self {
+    case .link:
+      return true
+    case .emphasis(let children), .strong(let children),
+      .strikethrough(let children), .image(_, let children):
+      return children.contains(where: \.containsLink)
+    case .text, .softBreak, .lineBreak, .code, .html:
+      return false
+    }
+  }
 }

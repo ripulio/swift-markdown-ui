@@ -49,11 +49,14 @@ struct NumberedListView: View {
     .environment(\.tightSpacingEnabled, self.isTight)
 
     if needsWidthSync {
-      sequence.onColumnWidthChange { columnWidths in
-        self.markerWidth = columnWidths[0]
-      }
+      sequence
+        .onColumnWidthChange { columnWidths in
+          self.markerWidth = columnWidths[0]
+        }
+        .disableTextSelectionForOccludedListLinks(self.items.hasOccludedListLink)
     } else {
       sequence
+        .disableTextSelectionForOccludedListLinks(self.items.hasOccludedListLink)
     }
   }
 }

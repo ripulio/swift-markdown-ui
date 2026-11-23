@@ -52,15 +52,60 @@ extension BlockNode {
       return false
     }
   }
+
+  var containsLink: Bool {
+    switch self {
+    case .blockquote(let children):
+      return children.contains(where: \.containsLink)
+    case .bulletedList(_, let items), .numberedList(_, _, let items):
+      return items.contains(where: \.containsLink)
+    case .taskList(_, let items):
+      return items.contains(where: \.containsLink)
+    case .paragraph(let content), .heading(_, let content):
+      return content.contains(where: \.containsLink)
+    case .table(_, let rows):
+      return rows.contains { row in
+        row.cells.contains { $0.content.contains(where: \.containsLink) }
+      }
+    case .codeBlock, .htmlBlock, .thematicBreak:
+      return false
+    }
+  }
 }
 
 struct RawListItem: Hashable {
   let children: [BlockNode]
+
+  var containsLink: Bool {
+    self.children.contains(where: \.containsLink)
+  }
 }
 
 struct RawTaskListItem: Hashable {
   let isCompleted: Bool
   let children: [BlockNode]
+
+  var containsLink: Bool {
+    self.children.contains(where: \.containsLink)
+  }
+}
+
+extension Array where Element == RawListItem {
+  /// True when any link in the list sits above another item or sibling block in the same list.
+  /// On iOS, SwiftUI's `.textSelection(.enabled)` gives each selectable `Text` a ±16 pt hit-test
+  /// responder while its `TextSelectionInteractionView` only accepts hits inside its exact text
+  /// bounds, so a following item eclipses links on the line above it.
+  var hasOccludedListLink: Bool {
+    self.dropLast().contains(where: \.containsLink)
+      || self.contains { $0.children.dropLast().contains(where: \.containsLink) }
+  }
+}
+
+extension Array where Element == RawTaskListItem {
+  var hasOccludedListLink: Bool {
+    self.dropLast().contains(where: \.containsLink)
+      || self.contains { $0.children.dropLast().contains(where: \.containsLink) }
+  }
 }
 
 enum RawTableColumnAlignment: Character {

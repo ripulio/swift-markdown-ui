@@ -34,3 +34,17 @@ struct ListItemSequence: View {
     .labelStyle(.titleAndIcon)
   }
 }
+
+extension View {
+  @ViewBuilder func disableTextSelectionForOccludedListLinks(_ shouldDisable: Bool) -> some View {
+    #if os(iOS)
+      if shouldDisable {
+        self.textSelection(.disabled)
+      } else {
+        self
+      }
+    #else
+      self
+    #endif
+  }
+}

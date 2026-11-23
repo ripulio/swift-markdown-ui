@@ -32,5 +32,6 @@ struct TaskListView: View {
     .labelStyle(.titleAndIcon)
     .environment(\.listLevel, self.listLevel + 1)
     .environment(\.tightSpacingEnabled, self.isTight)
+    .disableTextSelectionForOccludedListLinks(self.items.hasOccludedListLink)
   }
 }
