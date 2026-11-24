@@ -1,0 +1,95 @@
+{
+  "commits": [
+    {
+      "repo": "swift-markdown-ui",
+      "sha": "e5ea7feee624f9252ef0dbc323106cf68e34adc0",
+      "subject": "Replace dlsym extension lookup with public-API bootstrap (2.6.1)",
+      "timestamp": "2026-11-24T21:37:00.000Z"
+    }
+  ],
+  "contributors": [
+    {
+      "clientId": "web-user_3AONWcmlO5RS8dj3lRzQZtYXFxA",
+      "clientType": "web",
+      "displayName": "Peter Maude",
+      "firstSeenAt": "2026-11-24T09:15:16.232Z",
+      "lastSeenAt": "2026-11-24T21:31:02.373Z"
+    }
+  ],
+  "createdAt": "2026-11-24T09:15:16.134Z",
+  "deployments": [],
+  "filesEdited": [],
+  "id": "cli_8c57d053-24ba-4591-85a0-2644b6a4d499",
+  "milestones": [
+    {
+      "anchor": {
+        "ts": 1795516856352
+      },
+      "at": "2026-11-24T10:40:56.352Z",
+      "author": "agent",
+      "createdAt": "2026-11-24T10:40:56.406Z",
+      "detail": "Scrubbed private fixtures, added Sendable support, rendered Theme.chat Light/Dark visuals & 1280x640 OG card, upgraded BenchmarkApp & README with honest 2.4.1 vs 2.5 numbers, updated Ripul org profile, enabled Issues/Discussions/CI, and submitted to Swift Package Index.",
+      "id": "ms_mwukdl40_ws7a",
+      "kind": "delivered",
+      "title": "Shipped MarkdownUI 2.5.1 with full OSS & Ripul polish",
+      "updatedAt": "2026-11-24T10:40:56.406Z"
+    },
+    {
+      "anchor": {
+        "ts": 1795523402137
+      },
+      "at": "2026-11-24T12:30:02.137Z",
+      "author": "agent",
+      "createdAt": "2026-11-24T12:30:02.220Z",
+      "detail": "Shipped Pass 8 single-pass numbered/task/nested lists, AutomaticTableLayout, Theme.gitHub DirectTextStyle, integer-enum parser, and O(1) streaming memoization with 102/102 tests passing and 100% pixel parity.",
+      "id": "ms_mwuo9vvd_v2zp",
+      "kind": "delivered",
+      "title": "Shipped swift-markdown-ui 2.6.0 perf release",
+      "updatedAt": "2026-11-24T12:30:02.220Z"
+    }
+  ],
+  "modelHistory": [],
+  "notes": [],
+  "participants": [
+    {
+      "displayName": "Antigravity",
+      "firstSeenAt": "2026-11-24T09:15:16.125Z",
+      "group": "Local · Antigravity CLI",
+      "id": "antigravity-cli-raw-default",
+      "kind": "agent",
+      "lastSeenAt": "2026-11-24T21:31:02.179Z"
+    },
+    {
+      "displayName": "Peter Maude",
+      "firstSeenAt": "2026-11-24T09:15:16.315Z",
+      "group": "web",
+      "id": "human-user_3AONWcmlO5RS8dj3lRzQZtYXFxA",
+      "kind": "human",
+      "lastSeenAt": "2026-11-24T21:31:02.503Z"
+    }
+  ],
+  "shortcuts": [
+    {
+      "author": "agent",
+      "createdAt": "2026-11-24T10:40:25.345Z",
+      "id": "sc_mwukcx5a_9xzn",
+      "key": true,
+      "kind": "url",
+      "title": "ripulio/swift-markdown-ui (2.6.0)",
+      "updatedAt": "2026-11-24T12:30:00.489Z",
+      "url": "https://github.com/ripulio/swift-markdown-ui/releases/tag/2.6.0"
+    },
+    {
+      "author": "agent",
+      "createdAt": "2026-11-24T10:40:26.504Z",
+      "id": "sc_mwukcy19_fyzg",
+      "key": false,
+      "kind": "url",
+      "title": "Ripul GitHub org profile",
+      "updatedAt": "2026-11-24T10:40:26.504Z",
+      "url": "https://github.com/ripulio"
+    }
+  ],
+  "tags": [],
+  "updatedAt": "2026-11-24T21:37:03.944Z"
+}
