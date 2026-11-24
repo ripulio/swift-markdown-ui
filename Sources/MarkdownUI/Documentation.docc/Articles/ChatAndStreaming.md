@@ -4,7 +4,7 @@ Use ``Theme/chat``, single-pass block layout, adaptive GFM tables, and `Sendable
 
 ## Overview
 
-Built-in themes (``Theme/chat``, ``Theme/basic``, ``Theme/gitHub``, and ``Theme/docC``) automatically resolve block margins from the parsed syntax tree on pass 1, eliminating the `PreferenceKey` height corrections that cause scroll jumps inside `List`, `LazyVStack`, and `UICollectionView`.
+Built-in themes (``Theme/chat``, ``Theme/basic``, ``Theme/gitHub``, and ``Theme/docC``) automatically resolve block margins, bulleted/nested/numbered/task lists, and `.automatic`/`.adaptive` GFM tables on pass 1, eliminating the `PreferenceKey` height corrections that cause scroll jumps inside `List`, `LazyVStack`, and `UICollectionView`. During live token streaming, completed prefix blocks are memoized via `Equatable` wrappers and prefix-stable view batches so only the trailing block re-lays out.
 
 ![Theme.chat rendering headings, lists, callout quotes, fenced code blocks, and an adaptive GFM table](ThemeChat)
 

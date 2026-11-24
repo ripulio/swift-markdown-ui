@@ -1,7 +1,29 @@
 import SwiftUI
 
 final class TableBoundsBox: @unchecked Sendable {
-  var value: TableBounds?
+  var value: TableBounds? {
+    didSet {
+      self.cachedGroupsBorderWidth = nil
+      self.cachedDisjointGroups = nil
+    }
+  }
+
+  private var cachedGroupsBorderWidth: CGFloat?
+  private var cachedDisjointGroups: [[CGRect]]?
+
+  func disjointGroups(
+    borderWidth: CGFloat,
+    builder: @Sendable (TableBounds, CGFloat) -> [[CGRect]]
+  ) -> [[CGRect]]? {
+    guard let tableBounds = self.value else { return nil }
+    if self.cachedGroupsBorderWidth == borderWidth, let cached = self.cachedDisjointGroups {
+      return cached
+    }
+    let built = builder(tableBounds, borderWidth)
+    self.cachedGroupsBorderWidth = borderWidth
+    self.cachedDisjointGroups = built
+    return built
+  }
 }
 
 struct TableBounds {

@@ -22,22 +22,24 @@ extension Theme {
       .link {
         ForegroundColor(.link)
       }
-      .taskListMarker { _ in
-        // DocC renders task lists as bullet lists
-        ListBullet.disc
-          .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
-      }
-      .tableCell { configuration in
-        configuration.label
-          .markdownTextStyle {
-            if configuration.row == 0 {
-              FontWeight(.semibold)
-            }
+
+    theme.taskListMarker = BlockStyle(builtinTaskMarker: .discBullet) { _ in
+      // DocC renders task lists as bullet lists
+      ListBullet.disc
+        .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
+    }
+
+    theme.tableCell = BlockStyle(revision: 21) { configuration in
+      configuration.label
+        .markdownTextStyle {
+          if configuration.row == 0 {
+            FontWeight(.semibold)
           }
-          .fixedSize(horizontal: false, vertical: true)
-          .relativeLineSpacing(.em(0.235295))
-          .relativePadding(length: .rem(0.58824))
-      }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .relativeLineSpacing(.em(0.235295))
+        .relativePadding(length: .rem(0.58824))
+    }
 
     theme.heading1 = .heading(
       fontWeight: .semibold,

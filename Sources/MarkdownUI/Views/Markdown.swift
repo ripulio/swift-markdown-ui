@@ -214,6 +214,7 @@ public struct Markdown: View {
       BlockSequence(self.blocks)
         .foregroundColor(attributes.foregroundColor)
         .background(attributes.backgroundColor)
+        .environment(\.rootTextBackgroundColor, attributes.backgroundColor)
         .modifier(ScaledFontSizeModifier(attributes.fontProperties?.size))
     }
     .textStyle(self.theme.text)

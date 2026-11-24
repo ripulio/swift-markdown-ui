@@ -4,6 +4,19 @@ All notable changes to `ripulio/swift-markdown-ui` are documented in this file.
 
 This fork tracks Semantic Versioning from upstream [`gonzalezreal/swift-markdown-ui` `2.4.1`](https://github.com/gonzalezreal/swift-markdown-ui/releases/tag/2.4.1) (`5f61335`).
 
+## [2.6.0] — 2026-11-24
+
+### Performance (Pass 8 — Single-Pass Lists, Automatic Tables, `Theme.gitHub` Direct Text & `O(1)` Streaming)
+- **Single-pass numbered lists (`NumberedListLayout` + `CompactNumberedListView`):** Replaces multi-pass `PreferenceKey` / `@State` width syncing and per-item `Label` containers for built-in `.decimal`, `.upperRoman`, `.lowerRoman`, and `.dash` markers with synchronous `.firstTextBaseline` layout (2.1×–3.3× faster cold layout, `Δ 0.0 pt` jump). Custom `.markdownBlockStyle(\.numberedListMarker)` closures fall back automatically.
+- **Single-pass task lists & flattened nested bulleted lists:** Adds `CompactTaskListView` (2.0×–2.2× faster) and `CompactNestedBulletedListView` (flattening multi-level nested bullet lists into a single `BulletedListLayout` with per-variant `BulletProbeMetricsCache` probes; 2.0×–2.6× faster and 3.5× fewer streaming `sizeThatFits` calls on nested documents).
+- **Single-pass automatic & adaptive tables (`AutomaticTableLayout`):** Replaces SwiftUI `Grid` + per-cell `GeometryReader` / `TableCellBoundsPreference` for built-in `.basic`, `.gitHub`, and `.docC` `.automatic` tables with layout-resolved bounds and shape-batched backgrounds/borders (2.0×–2.2× faster with 100% pixel parity), enables measurement caching and built-in compact cells on `.markdownTableLayout(.adaptive(...))` (1.8× faster), and caches `TableBoundsBox.disjointGroups` across border stroke passes.
+- **`Theme.gitHub` `DirectTextStyle` & native decorations:** Suppresses redundant per-run `AttributedString` background fills when the color matches the root `Markdown` background (`EnvironmentValues.rootTextBackgroundColor`, cleared inside `BlockquoteView`), unlocking `DirectTextStyle` across `Theme.gitHub` (1.7×–2.1× faster prose), and adds native `.strikethrough(.single)` and `.underline(.single)` support to `DirectTextStyle`.
+- **`O(1)` live-streaming updates & prefix-stable `StaticViewBatch`:** Conforms block views (`DirectProseBlockView`, compact list blocks, `CodeBlockView`, `TableView`) to `Equatable`, rewrites `StaticViewBatch` into prefix-stable 8-slot buckets so appending blocks across power-of-two counts never tears down earlier stateful blocks, and retains measured prefix sizes for stateless blocks in `BlockSpacedStackLayout` / `ParagraphStackLayout` (keyed on full style fingerprint including `dynamicTypeSize`, `legibilityWeight`, and `lineLimit`). Cuts 80-step streaming total time by **2.0×–3.1×** and cuts 95th-percentile frame latency by **3.5×** (`12.5 ms → 3.5 ms` on a 5.9 KB mixed reply; `4.6 ms → 1.3 ms` on 16 code/link paragraphs).
+- **Zero-allocation integer-enum `MarkdownParser`:** Replaces per-node `String(cString: cmark_node_get_type_string)` bridging with direct `cmark_node_get_type` integer dispatch and caches GFM syntax extension handles once in `CachedSyntaxExtensions` (~22%–24% faster `MarkdownContent` parsing).
+
+### Tests
+- Added `Performance26Tests` covering single-pass height/pixel parity for multi-digit numbered lists, task lists, 3-level nested bullets, wrapping/non-wrapping automatic tables, mounted environment propagation through `Equatable` blocks, `Theme.gitHub` custom blockquotes, `StaticViewBatch` power-of-two identity stability, Safety Invariant #7 descendant `@State` height updates, and integer-enum GFM parsing.
+
 ## [2.5.1] — 2026-11-24
 
 ### Fixed

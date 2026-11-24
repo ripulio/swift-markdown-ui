@@ -355,9 +355,10 @@
         let afterSecondLayout = _BulletedListLayoutDebug.snapshot()
       #endif
 
-      // Only 2 compact bulleted list levels exist here (level 2 circle and level 3 square; level 1 has nested children),
-      // so cold probe storage must run at most once per unique level (<= 2), never per width probe or per list instance.
-      XCTAssertLessThanOrEqual(afterFirstLayout.probeStoreCalls, 2)
+      // All 3 compact bulleted list levels exist here (level 1 disc, level 2 circle, level 3 square)
+      // because flattened nested lists run through CompactNestedBulletedListView, so cold probe
+      // storage must run at most once per unique symbol variant (<= 3), never per width probe or list.
+      XCTAssertLessThanOrEqual(afterFirstLayout.probeStoreCalls, 3)
       XCTAssertEqual(afterSecondLayout.probeStoreCalls, afterFirstLayout.probeStoreCalls)
       XCTAssertEqual(afterSecondLayout.measureCalls, afterFirstLayout.measureCalls)
     }

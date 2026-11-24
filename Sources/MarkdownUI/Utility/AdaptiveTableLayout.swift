@@ -25,6 +25,8 @@ struct AdaptiveTableLayout: Layout {
     maximumColumnWidth: CGFloat,
     overflow: TableLayoutStyle.Overflow,
     onResolveBounds: (([CGFloat], [CGFloat]) -> Void)? = nil,
+    cachesMeasurements: Bool = true,
+    canReuseUnwrappedCellHeights: Bool = false,
     cellPadding: EdgeInsets? = nil,
     columnAlignments: [TextAlignment] = []
   ) {
@@ -36,8 +38,8 @@ struct AdaptiveTableLayout: Layout {
     self.overflow = overflow
     self.onMeasureWidth = nil
     self.onResolveBounds = onResolveBounds
-    self.cachesMeasurements = false
-    self.canReuseUnwrappedCellHeights = false
+    self.cachesMeasurements = cachesMeasurements
+    self.canReuseUnwrappedCellHeights = canReuseUnwrappedCellHeights
     self.cellPadding = cellPadding
     self.columnAlignments = columnAlignments
   }

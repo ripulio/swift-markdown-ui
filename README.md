@@ -8,9 +8,9 @@
 
 **Single-pass native GitHub Flavored Markdown for SwiftUI — built for 120 Hz scrolling and live AI/LLM streaming.**
 
-`ripulio/swift-markdown-ui` (**MarkdownUI 2.5**, maintained by **[Ripul](https://ripul.io)**) is the actively maintained, **100% source-compatible continuation** of [`gonzalezreal/swift-markdown-ui`](https://github.com/gonzalezreal/swift-markdown-ui) (`2.4.1`, now in maintenance mode as new upstream work moved to Textual for newer OS targets).
+`ripulio/swift-markdown-ui` (**MarkdownUI 2.6**, maintained by **[Ripul](https://ripul.io)**) is the actively maintained, **100% source-compatible continuation** of [`gonzalezreal/swift-markdown-ui`](https://github.com/gonzalezreal/swift-markdown-ui) (`2.4.1`, now in maintenance mode as new upstream work moved to Textual for newer OS targets).
 
-Keep `import MarkdownUI`, keep your **iOS 15+ / macOS 12+** deployment target, and keep every existing `Theme` or view modifier unchanged: swapping one package URL upgrades `.basic`, `.gitHub`, `.docC`, and the new `.chat` preset to a single-pass layout engine that eliminates `PreferenceKey` scroll jumps and runs **3×–10× faster than upstream `2.4.1`**—battle-tested daily in production inside [Ripul](https://ripul.io) and [`ripul-ios-sdk`](https://github.com/ripulio/ripul-ios-sdk).
+Keep `import MarkdownUI`, keep your **iOS 15+ / macOS 12+** deployment target, and keep every existing `Theme` or view modifier unchanged: swapping one package URL upgrades `.basic`, `.gitHub`, `.docC`, and `.chat` to a single-pass layout engine with **`O(1)` streaming block memoization** that eliminates `PreferenceKey` scroll jumps and runs **up to 10× faster than upstream `2.4.1`**—battle-tested daily in production inside [Ripul](https://ripul.io) and [`ripul-ios-sdk`](https://github.com/ripulio/ripul-ios-sdk).
 
 <p align="center">
   <img src="Sources/MarkdownUI/Documentation.docc/Resources/ThemeChat@2x.png#gh-light-mode-only" alt="Theme.chat rendering headings, lists, callout blockquotes, fenced code cards, and adaptive GFM tables in Light Mode" width="520" />
@@ -19,14 +19,14 @@ Keep `import MarkdownUI`, keep your **iOS 15+ / macOS 12+** deployment target, a
 
 ---
 
-## Highlights in 2.5
+## Highlights in 2.6
 
-- **Zero-jitter single-pass layout (`Δ 0.0 pt`):** Block margins resolve directly from the parsed syntax tree on pass 1 instead of waiting on `PreferenceKey` → `@State` → second-pass re-layout cycles. `List`, `LazyVStack`, and `UICollectionView` cells stop jumping during fast flings.
-- **Built for 60–120 Hz AI streaming:** Blocks and measured state are keyed by structural tree position (`markdownBlockPath`) rather than full string content, so token-by-token streaming updates only the trailing block without resetting scroll offsets or code-block controls.
-- **Direct `SwiftUI.Text` inline runs:** Plain, **bold**, and *italic* spans build direct `Text(verbatim:)` segments with pre-resolved `Font` caches instead of per-run `Foundation.AttributedString` bridging—fixing upstream newline hangs ([#312](https://github.com/gonzalezreal/swift-markdown-ui/issues/312)) and dropped spaces after links/bold spans ([#402](https://github.com/gonzalezreal/swift-markdown-ui/issues/402)).
-- **New built-in `.markdownTheme(.chat)` preset:** Tuned out of the box for AI assistants and messaging apps—proportioned headings, rounded callout quotes, language-header code cards, compact `BulletedListLayout`, and viewport-aware horizontal-scrolling GFM tables.
-- **Zero-config speedup on `.basic`, `.gitHub`, and `.docC`:** All built-in themes automatically run on the single-pass fast path with **pixel and height parity** against upstream `2.4.1`, falling back automatically if you attach a custom `.markdownBlockStyle(...)` closure.
-- **Swift 6 & iOS polish (`2.5.1`):** `MarkdownContent` and `Theme` conform to `Sendable` for clean background-actor parsing (incorporating upstream `#351`), and iOS lists with links above subsequent items automatically avoid SwiftUI's `±16 pt` `.textSelection` hit-test occlusion.
+- **Zero-jitter single-pass layout across every block type (`Δ 0.0 pt`):** Paragraphs, headings, bulleted lists, **multi-level nested lists**, **numbered lists**, **task lists**, and **built-in `.automatic` & `.adaptive` GFM tables** resolve in a single pass with zero `PreferenceKey` → `@State` re-layout jumps.
+- **`O(1)` 60–120 Hz AI streaming (`2.6.0`):** Per-block `Equatable` memoization, prefix-stable `StaticViewBatch` buckets, and retained stateless prefix sizes keep completed blocks untouched as tokens arrive—cutting 95th-percentile streaming frame times by **3.5×** (`12.5 ms → 3.5 ms` on a 5.9 KB mixed reply).
+- **Direct `SwiftUI.Text` inline runs (now including `Theme.gitHub` + strikethrough/underline):** Plain, **bold**, *italic*, ~~strikethrough~~, and underlined spans render via direct `Text(verbatim:)` segments with pre-resolved `Font` caches, fixing upstream newline hangs ([#312](https://github.com/gonzalezreal/swift-markdown-ui/issues/312)) and dropped spaces after links/bold spans ([#402](https://github.com/gonzalezreal/swift-markdown-ui/issues/402)).
+- **Built-in `.markdownTheme(.chat)` preset:** Tuned out of the box for AI assistants and messaging apps—proportioned headings, rounded callout quotes, language-header code cards, compact single-pass lists, and viewport-aware horizontal-scrolling GFM tables.
+- **Zero-config speedup on `.basic`, `.gitHub`, and `.docC`:** All built-in themes automatically run on single-pass list, table, and prose layouts with **100% pixel and height parity** against upstream `2.4.1`, falling back automatically if you attach a custom `.markdownBlockStyle(...)` closure.
+- **Swift 6 & iOS polish:** `MarkdownContent` and `Theme` conform to `Sendable` for clean background-actor parsing (incorporating upstream `#351`), integer-enum `cmark-gfm` parsing runs ~23% faster, and iOS lists automatically avoid SwiftUI's `±16 pt` `.textSelection` link occlusion.
 
 ---
 
@@ -56,19 +56,36 @@ xychart-beta
 
 **Methodology & Reproducibility:** Upstream `2.4.1` settled timings include both pass 1 and the asynchronous `PreferenceKey` settling pass paid by real scrolling lists (`thermal = fair`, iPhone 15 Pro Max); `MarkdownUI 2.5` and plain `SwiftUI.Text` (unstyled raw Markdown string) were measured on the same device (`thermal = nominal`). Run your own attached-host comparison against closure-based `Legacy 2.4.1`, `.chat`, `.basic`, `.gitHub`, and plain `Text` in 30 seconds with [`Examples/BenchmarkApp`](Examples/BenchmarkApp/).
 
+### Additional Gains in `2.6.0` (macOS Release, `400pt`, `2.5.1` → `2.6.0`)
+
+Measured on Apple Silicon macOS (Release build, attached `NSHostingView` at `400pt`, median of 5 rounds; 80-step streaming on `Theme.chat`):
+
+| Workload (`400pt` width) | `2.5.1` | `2.6.0` | Speedup |
+| :--- | ---: | ---: | ---: |
+| **Numbered List (16 items)** *(`.chat` / `.basic`)* | 23.7 ms / 22.6 ms | **7.1 ms / 7.0 ms** | **3.3×** |
+| **Nested Bullets (4×4)** *(`.chat` / `.basic`)* | 13.1 ms / 13.3 ms | **5.3 ms / 5.1 ms** | **2.5×–2.6×** |
+| **Task List (12 items)** *(`.chat` / `.gitHub`)* | 9.9 ms / 12.2 ms | **5.0 ms / 5.6 ms** | **2.0×–2.2×** |
+| **Wrapping 15×4 Table** *(`.gitHub` / `.basic`)* | 27.8 ms / 26.5 ms | **14.1 ms / 11.9 ms** | **2.0×–2.2×** |
+| **Static `.adaptive(...)` 15×4 Table** | 24.2 ms | **13.4 ms** | **1.8×** |
+| **Prose Plain/Bold (8p)** *(`.gitHub`)* | 7.9 ms | **3.8 ms** | **2.1×** |
+| **Long Mixed Reply (5.9 KB)** *(`.chat` / `.gitHub` / `.basic`)* | 48.4 / 74.9 / 62.7 ms | **25.3 / 32.6 / 23.0 ms** | **1.9×–2.7×** |
+| **80-Step Streaming — Mixed Reply (5.9 KB)** *(total / p95)* | 402.5 ms / 12.5 ms | **202.5 ms / 3.5 ms** | **2.0× total · 3.5× p95** |
+| **80-Step Streaming — 16 Code/Link Paragraphs** *(total / p95)* | 188.3 ms / 4.6 ms | **61.7 ms / 1.3 ms** | **3.1× total · 3.6× p95** |
+| **`MarkdownContent` Parse (5.9 KB)** | 0.186 ms | **0.142 ms** | **1.3×** |
+
 ---
 
 ## Why Switch from Upstream `2.4.1`?
 
-| Capability | `gonzalezreal/swift-markdown-ui` `2.4.1` | `ripulio/swift-markdown-ui` `2.5.x` |
+| Capability | `gonzalezreal/swift-markdown-ui` `2.4.1` | `ripulio/swift-markdown-ui` `2.6.x` |
 | :--- | :--- | :--- |
 | **Maintenance status** | Maintenance mode (new work in Textual) | **Actively maintained & used in production** |
 | **Platform floor** | iOS 15+ / macOS 12+ | **iOS 15+ / macOS 12+** *(drop-in compatible)* |
-| **Public API (`import MarkdownUI`)** | Original 2.x API | **100% source-compatible** (`from: "2.5.1"`) |
+| **Public API (`import MarkdownUI`)** | Original 2.x API | **100% source-compatible** (`from: "2.6.0"`) |
 | **Block margin layout** | 2-pass `PreferenceKey` + `@State` *(causes `List` jumps)* | **Single-pass tree-resolved margins (`0.0 pt` jump)** |
-| **LLM token streaming** | Keyed by full block value; resets child state | **Keyed by structural `markdownBlockPath`** |
-| **Bulleted lists** | Per-item `Label` + width `PreferenceKey` | **`BulletedListLayout` + cached cap-center probe** |
-| **GFM tables** | Fixed `Grid` + per-cell `GeometryReader` preferences | **Viewport-aware `AdaptiveTableLayout` + shape batches** |
+| **LLM token streaming** | Keyed by full block value; resets child state | **Positional identity + `O(1)` per-block memoization** |
+| **Lists (bullet, nested, numbered, task)** | Per-item `Label` + width `PreferenceKey` | **Single-pass `BulletedListLayout` & `NumberedListLayout`** |
+| **GFM tables (`.automatic` & `.adaptive`)** | Fixed `Grid` + per-cell `GeometryReader` preferences | **`AutomaticTableLayout` & `AdaptiveTableLayout` + shape batches** |
 | **Newline-heavy paragraphs** | Recursive `Text + Text` hangs UI ([#312](https://github.com/gonzalezreal/swift-markdown-ui/issues/312)) | **Balanced `Text(verbatim:)` + bounded chunks** |
 | **Space after bold / links** | Dropped after leading inline spans ([#402](https://github.com/gonzalezreal/swift-markdown-ui/issues/402)) | **Fixed + regression-tested** |
 | **Images mixed with text** | Provider ignored outside image-only paragraphs ([#420](https://github.com/gonzalezreal/swift-markdown-ui/issues/420) / [#439](https://github.com/gonzalezreal/swift-markdown-ui/issues/439)) | **Inline `ImageFlow` + `markdownInlineImageFlow()`** |
@@ -85,7 +102,7 @@ Swap the package URL (or add `swift-markdown-ui` fresh) in your `Package.swift`:
 
 ```swift
 dependencies: [
-  .package(url: "https://github.com/ripulio/swift-markdown-ui", from: "2.5.1")
+  .package(url: "https://github.com/ripulio/swift-markdown-ui", from: "2.6.0")
 ]
 ```
 
@@ -104,7 +121,7 @@ Link `"MarkdownUI"` to your target—**no source changes required**:
 
 1. Open **File → Add Package Dependencies…**
 2. Paste `https://github.com/ripulio/swift-markdown-ui`
-3. Select **Up to Next Major Version** from **`2.5.1`** and add **MarkdownUI** to your target.
+3. Select **Up to Next Major Version** from **`2.6.0`** and add **MarkdownUI** to your target.
 
 ### Minimum Platform Requirements
 
@@ -150,7 +167,7 @@ Markdown(message.content)
 ```swift
 Markdown {
   Heading(.level2) {
-    "Try MarkdownUI 2.5"
+    "Try MarkdownUI 2.6"
   }
   Paragraph {
     Strong("MarkdownUI")

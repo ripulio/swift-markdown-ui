@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct CodeBlockView: View {
+struct CodeBlockView: View, Equatable {
   @Environment(\.theme.codeBlock) private var codeBlock
   @Environment(\.codeSyntaxHighlighter) private var codeSyntaxHighlighter
   @Environment(\.markdownBlockPath) private var blockPath
@@ -11,6 +11,10 @@ struct CodeBlockView: View {
   init(fenceInfo: String?, content: String) {
     self.fenceInfo = fenceInfo
     self.content = content.hasSuffix("\n") ? String(content.dropLast()) : content
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.fenceInfo == rhs.fenceInfo && lhs.content == rhs.content
   }
 
   var body: some View {

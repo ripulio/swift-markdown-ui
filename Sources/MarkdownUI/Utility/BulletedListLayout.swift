@@ -121,6 +121,13 @@ struct BulletedListLayout: Layout {
   var probeKey: BulletProbeKey? = nil
   var cachedProbe: BulletProbeMetrics? = nil
   var hasLeadingProbeSubview: Bool = true
+  var rowIndents: [Int]? = nil
+  var rowTopSpacings: [CGFloat]? = nil
+  var rowVariantIndices: [Int]? = nil
+  var variantProbes: [BulletProbeMetrics?]? = nil
+  var variantProbeKeys: [BulletProbeKey]? = nil
+  var leadingProbeCount: Int = 0
+  var usesPerRowIconWidth: Bool = false
 
   struct CacheEntry {
     let key: CacheKey
@@ -131,6 +138,7 @@ struct BulletedListLayout: Layout {
     var entries: [CacheEntry] = []
     var probeKey: BulletProbeKey?
     var probe: BulletProbeMetrics?
+    var variantProbes: [BulletProbeKey: BulletProbeMetrics] = [:]
 
     func lookup(_ key: CacheKey) -> Metrics? {
       self.entries.first(where: { $0.key == key })?.metrics
@@ -154,12 +162,19 @@ struct BulletedListLayout: Layout {
     let minBulletWidth: CGFloat
     let itemSpacing: CGFloat
     let hasLeadingProbeSubview: Bool
+    let leadingProbeCount: Int
+    let rowIndents: [Int]?
+    let rowTopSpacings: [CGFloat]?
   }
 
   struct RowPlacement {
+    let indent: Int
+    let iconWidth: CGFloat
     let bulletY: CGFloat
     let itemY: CGFloat
+    let itemProposalWidth: CGFloat?
     let rowHeight: CGFloat
+    let topSpacing: CGFloat
   }
 
   struct Metrics {
@@ -218,6 +233,8 @@ struct BulletedListLayout: Layout {
     if let matched = cache.entries.last(where: { entry in
       entry.key.subviewCount == subviews.count
         && entry.key.hasLeadingProbeSubview == self.hasLeadingProbeSubview
+        && entry.key.rowIndents == self.rowIndents
+        && entry.key.rowTopSpacings == self.rowTopSpacings
         && abs(entry.metrics.size.width - bounds.width) < 0.01
         && abs(entry.metrics.size.height - bounds.height) < 0.01
     })?.metrics {
@@ -229,25 +246,30 @@ struct BulletedListLayout: Layout {
         cache: &cache
       )
     }
-    let baseOffset = self.hasLeadingProbeSubview ? 1 : 0
+    let effectiveProbeCount = self.leadingProbeCount > 0 ? self.leadingProbeCount : (self.hasLeadingProbeSubview ? 1 : 0)
+    let baseOffset = effectiveProbeCount
     let itemCount = (subviews.count - baseOffset) / 2
     guard itemCount > 0 else { return }
 
-    if self.hasLeadingProbeSubview {
-      subviews[0].place(
+    for probeIdx in 0..<effectiveProbeCount {
+      subviews[probeIdx].place(
         at: bounds.origin,
         anchor: .topLeading,
         proposal: ProposedViewSize(width: 0, height: 0)
       )
     }
 
-    let bulletX = bounds.minX + metrics.bulletSlotWidth - metrics.iconSize.width
-    let itemX = bounds.minX + metrics.bulletSlotWidth + metrics.iconToItemSpacing
-    let itemProposal = ProposedViewSize(width: metrics.itemProposalWidth, height: nil)
+    let levelStep = metrics.bulletSlotWidth + metrics.iconToItemSpacing
 
     var y = bounds.minY
     for index in 0..<itemCount {
       let row = metrics.rows[index]
+      if index > 0 {
+        y += row.topSpacing
+      }
+      let indentX = CGFloat(row.indent) * levelStep
+      let bulletX = bounds.minX + indentX + metrics.bulletSlotWidth - row.iconWidth
+      let itemX = bounds.minX + indentX + levelStep
       subviews[baseOffset + 2 * index].place(
         at: CGPoint(x: bulletX, y: y + row.bulletY),
         anchor: .topLeading,
@@ -256,9 +278,9 @@ struct BulletedListLayout: Layout {
       subviews[baseOffset + 1 + 2 * index].place(
         at: CGPoint(x: itemX, y: y + row.itemY),
         anchor: .topLeading,
-        proposal: itemProposal
+        proposal: ProposedViewSize(width: row.itemProposalWidth, height: nil)
       )
-      y += row.rowHeight + self.itemSpacing
+      y += row.rowHeight
     }
   }
 
@@ -274,7 +296,10 @@ struct BulletedListLayout: Layout {
       availableWidth: normalizedWidth,
       minBulletWidth: self.minBulletWidth,
       itemSpacing: self.itemSpacing,
-      hasLeadingProbeSubview: self.hasLeadingProbeSubview
+      hasLeadingProbeSubview: self.hasLeadingProbeSubview,
+      leadingProbeCount: self.leadingProbeCount,
+      rowIndents: self.rowIndents,
+      rowTopSpacings: self.rowTopSpacings
     )
     if let cached = cache.lookup(key) {
       return cached
@@ -290,7 +315,8 @@ struct BulletedListLayout: Layout {
     cache: inout Cache
   ) -> Metrics {
     _BulletedListLayoutDebug.recordMeasure()
-    let baseOffset = self.hasLeadingProbeSubview ? 1 : 0
+    let effectiveProbeCount = self.leadingProbeCount > 0 ? self.leadingProbeCount : (self.hasLeadingProbeSubview ? 1 : 0)
+    let baseOffset = effectiveProbeCount
     let itemCount = (subviews.count - baseOffset) / 2
     guard itemCount > 0 else {
       return Metrics(
@@ -303,8 +329,55 @@ struct BulletedListLayout: Layout {
       )
     }
 
+    var resolvedVariantProbes: [BulletProbeMetrics]?
+    if let variantKeys = self.variantProbeKeys, !variantKeys.isEmpty {
+      var list: [BulletProbeMetrics] = []
+      list.reserveCapacity(variantKeys.count)
+      var probeCursor = 0
+      for (vIdx, vKey) in variantKeys.enumerated() {
+        if let provided = self.variantProbes, vIdx < provided.count, let hit = provided[vIdx] {
+          list.append(hit)
+        } else if let hit = cache.variantProbes[vKey] {
+          list.append(hit)
+          probeCursor += 2
+        } else if let hit = BulletProbeMetricsCache.lookup(vKey) {
+          cache.variantProbes[vKey] = hit
+          list.append(hit)
+          probeCursor += 2
+        } else {
+          let prototypeHeight: CGFloat = 100
+          let protoDim = subviews[probeCursor].dimensions(in: .unspecified)
+          let iconDim = subviews[probeCursor + 1].dimensions(in: .unspecified)
+          let iconSize = CGSize(width: iconDim.width, height: iconDim.height)
+          let rawBulletY = protoDim.height - prototypeHeight
+          let fixedBulletY = max(0, rawBulletY)
+          let fixedItemY = max(0, -rawBulletY)
+          let bulletSlotWidth = max(self.minBulletWidth, iconSize.width)
+          let iconToItemSpacing = subviews[probeCursor + 1].spacing.distance(
+            to: subviews[baseOffset + 1].spacing,
+            along: .horizontal
+          )
+          let measured = BulletProbeMetrics(
+            iconSize: iconSize,
+            fixedBulletY: fixedBulletY,
+            fixedItemY: fixedItemY,
+            bulletSlotWidth: bulletSlotWidth,
+            iconToItemSpacing: iconToItemSpacing
+          )
+          cache.variantProbes[vKey] = measured
+          _BulletedListLayoutDebug.recordProbeStore()
+          BulletProbeMetricsCache.store(measured, for: vKey)
+          list.append(measured)
+          probeCursor += 2
+        }
+      }
+      resolvedVariantProbes = list
+    }
+
     let probe: BulletProbeMetrics
-    if let cachedProbe = self.cachedProbe {
+    if let firstVariant = resolvedVariantProbes?.first {
+      probe = firstVariant
+    } else if let cachedProbe = self.cachedProbe {
       probe = cachedProbe
     } else if cache.probeKey == self.probeKey, let cachedProbe = cache.probe {
       probe = cachedProbe
@@ -341,42 +414,85 @@ struct BulletedListLayout: Layout {
       probe = measured
     }
 
-    let itemProposalWidth: CGFloat? = availableWidth.map {
-      max(0, $0 - probe.bulletSlotWidth - probe.iconToItemSpacing)
-    }
-    let itemProposal = ProposedViewSize(width: itemProposalWidth, height: nil)
+    let levelStep = probe.bulletSlotWidth + probe.iconToItemSpacing
+    let baseItemProposalWidth: CGFloat? = availableWidth.map { max(0, $0 - levelStep) }
+    let indents = self.rowIndents
+    let topSpacings = self.rowTopSpacings
+    let variantIndices = self.rowVariantIndices
+    let measureIconPerRow = self.usesPerRowIconWidth && resolvedVariantProbes == nil
 
     var rows: [RowPlacement] = []
     rows.reserveCapacity(itemCount)
-    var maxItemWidth: CGFloat = 0
+    var maxTotalWidth: CGFloat = 0
     var totalHeight: CGFloat = 0
 
     for index in 0..<itemCount {
-      let itemDimensions = subviews[baseOffset + 1 + 2 * index].dimensions(in: itemProposal)
+      let indent = (indents != nil && index < indents!.count) ? indents![index] : 0
+      let rowTopSpacing: CGFloat
+      if index == 0 {
+        rowTopSpacing = 0
+      } else if let topSpacings, index < topSpacings.count {
+        rowTopSpacing = topSpacings[index]
+      } else {
+        rowTopSpacing = self.itemSpacing
+      }
+
+      let rowProbe: BulletProbeMetrics
+      if let resolvedVariantProbes,
+        let variantIndices,
+        index < variantIndices.count,
+        variantIndices[index] < resolvedVariantProbes.count
+      {
+        rowProbe = resolvedVariantProbes[variantIndices[index]]
+      } else {
+        rowProbe = probe
+      }
+
+      let indentWidth = CGFloat(indent) * levelStep
+      let rowProposalWidth: CGFloat? =
+        indent == 0
+        ? baseItemProposalWidth
+        : availableWidth.map { max(0, $0 - indentWidth - levelStep) }
+      let iconWidth: CGFloat
+      let iconHeight: CGFloat
+      if measureIconPerRow {
+        let dim = subviews[baseOffset + 2 * index].dimensions(in: .unspecified)
+        iconWidth = dim.width
+        iconHeight = dim.height
+      } else {
+        iconWidth = rowProbe.iconSize.width
+        iconHeight = rowProbe.iconSize.height
+      }
+
+      let itemDimensions = subviews[baseOffset + 1 + 2 * index].dimensions(
+        in: ProposedViewSize(width: rowProposalWidth, height: nil)
+      )
       let rowHeight = max(
-        probe.fixedBulletY + probe.iconSize.height,
-        probe.fixedItemY + itemDimensions.height
+        rowProbe.fixedBulletY + iconHeight,
+        rowProbe.fixedItemY + itemDimensions.height
       )
       rows.append(
         RowPlacement(
-          bulletY: probe.fixedBulletY,
-          itemY: probe.fixedItemY,
-          rowHeight: rowHeight
+          indent: indent,
+          iconWidth: iconWidth,
+          bulletY: rowProbe.fixedBulletY,
+          itemY: rowProbe.fixedItemY,
+          itemProposalWidth: rowProposalWidth,
+          rowHeight: rowHeight,
+          topSpacing: rowTopSpacing
         )
       )
-      maxItemWidth = max(maxItemWidth, itemDimensions.width)
-      totalHeight += rowHeight
+      maxTotalWidth = max(maxTotalWidth, indentWidth + levelStep + itemDimensions.width)
+      totalHeight += rowTopSpacing + rowHeight
     }
-    totalHeight += CGFloat(max(0, itemCount - 1)) * self.itemSpacing
 
-    let resolvedWidth = probe.bulletSlotWidth + probe.iconToItemSpacing + maxItemWidth
     return Metrics(
       iconSize: probe.iconSize,
       bulletSlotWidth: probe.bulletSlotWidth,
       iconToItemSpacing: probe.iconToItemSpacing,
-      itemProposalWidth: itemProposalWidth,
+      itemProposalWidth: baseItemProposalWidth,
       rows: rows,
-      size: CGSize(width: resolvedWidth, height: totalHeight)
+      size: CGSize(width: maxTotalWidth, height: totalHeight)
     )
   }
 }

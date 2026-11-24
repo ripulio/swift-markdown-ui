@@ -32,26 +32,30 @@ extension Theme {
       .link {
         ForegroundColor(.link)
       }
-      .taskListMarker { configuration in
-        Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
-          .symbolRenderingMode(.hierarchical)
-          .foregroundStyle(Color.checkbox, Color.checkboxBackground)
-          .imageScale(.small)
-          .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
-      }
-      .tableCell { configuration in
-        configuration.label
-          .markdownTextStyle {
-            if configuration.row == 0 {
-              FontWeight(.semibold)
-            }
-            BackgroundColor(nil)
+
+    theme.taskListMarker = BlockStyle(
+      builtinTaskMarker: .gitHubCheckmark(foreground: .checkbox, background: .checkboxBackground)
+    ) { configuration in
+      Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
+        .symbolRenderingMode(.hierarchical)
+        .foregroundStyle(Color.checkbox, Color.checkboxBackground)
+        .imageScale(.small)
+        .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
+    }
+
+    theme.tableCell = BlockStyle(revision: 20) { configuration in
+      configuration.label
+        .markdownTextStyle {
+          if configuration.row == 0 {
+            FontWeight(.semibold)
           }
-          .fixedSize(horizontal: false, vertical: true)
-          .padding(.vertical, 6)
-          .padding(.horizontal, 13)
-          .relativeLineSpacing(.em(0.25))
-      }
+          BackgroundColor(nil)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 13)
+        .relativeLineSpacing(.em(0.25))
+    }
 
     theme.heading1 = .withBlockMargin(top: .points(24), bottom: .points(16)) { configuration in
       VStack(alignment: .leading, spacing: 0) {

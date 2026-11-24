@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Emits `0..<count` homogeneous views into a `Layout` container without `ForEach` /
-/// `DynamicViewList` overhead when `count < 32` (using a 5-bit binary tuple decomposition),
-/// and in 16-item chunks when `count >= 32`.
+/// `DynamicViewList` overhead for the first 32 items while keeping every item's
+/// structural SwiftUI identity completely stable as `count` grows (e.g. during
+/// live token streaming when new blocks or list rows append at the tail).
 struct StaticViewBatch<ItemView: View>: View {
   let count: Int
   let makeItem: (Int) -> ItemView
@@ -13,69 +14,34 @@ struct StaticViewBatch<ItemView: View>: View {
   }
 
   var body: some View {
-    if self.count < 32 {
-      self.emitUpTo31(base: 0, count: Swift.max(0, self.count))
-    } else {
-      let fullGroups = self.count >> 4
-      let rem = self.count & 15
-      ForEach(0..<fullGroups, id: \.self) { group in
-        self.group16(base: group << 4)
+    if self.count > 0 {
+      self.prefix8(base: 0, count: self.count)
+    }
+    if self.count > 8 {
+      self.prefix8(base: 8, count: self.count)
+    }
+    if self.count > 16 {
+      self.prefix8(base: 16, count: self.count)
+    }
+    if self.count > 24 {
+      self.prefix8(base: 24, count: self.count)
+    }
+    if self.count > 32 {
+      let endGroup = (self.count + 7) >> 3
+      ForEach(4..<endGroup, id: \.self) { group in
+        self.prefix8(base: group << 3, count: self.count)
       }
-      self.emitUpTo15(base: fullGroups << 4, count: rem)
     }
   }
 
-  @ViewBuilder private func emitUpTo31(base: Int, count: Int) -> some View {
-    let b8 = base + (count & 16)
-    if (count & 16) != 0 {
-      self.group16(base: base)
-    }
-    self.emitUpTo15(base: b8, count: count & 15)
-  }
-
-  @ViewBuilder private func emitUpTo15(base: Int, count: Int) -> some View {
-    let b4 = base + (count & 8)
-    let b2 = b4 + (count & 4)
-    let b1 = b2 + (count & 2)
-    if (count & 8) != 0 {
-      self.group8(base: base)
-    }
-    if (count & 4) != 0 {
-      self.group4(base: b4)
-    }
-    if (count & 2) != 0 {
-      self.group2(base: b2)
-    }
-    if (count & 1) != 0 {
-      self.makeItem(b1)
-    }
-  }
-
-  @ViewBuilder private func group16(base: Int) -> some View {
-    self.group8(base: base)
-    self.group8(base: base + 8)
-  }
-
-  @ViewBuilder private func group8(base: Int) -> some View {
-    self.makeItem(base)
-    self.makeItem(base + 1)
-    self.makeItem(base + 2)
-    self.makeItem(base + 3)
-    self.makeItem(base + 4)
-    self.makeItem(base + 5)
-    self.makeItem(base + 6)
-    self.makeItem(base + 7)
-  }
-
-  @ViewBuilder private func group4(base: Int) -> some View {
-    self.makeItem(base)
-    self.makeItem(base + 1)
-    self.makeItem(base + 2)
-    self.makeItem(base + 3)
-  }
-
-  @ViewBuilder private func group2(base: Int) -> some View {
-    self.makeItem(base)
-    self.makeItem(base + 1)
+  @ViewBuilder private func prefix8(base: Int, count: Int) -> some View {
+    if count > base { self.makeItem(base) }
+    if count > base + 1 { self.makeItem(base + 1) }
+    if count > base + 2 { self.makeItem(base + 2) }
+    if count > base + 3 { self.makeItem(base + 3) }
+    if count > base + 4 { self.makeItem(base + 4) }
+    if count > base + 5 { self.makeItem(base + 5) }
+    if count > base + 6 { self.makeItem(base + 6) }
+    if count > base + 7 { self.makeItem(base + 7) }
   }
 }

@@ -13,7 +13,7 @@ extension BlockStyle where Configuration == TaskListMarkerConfiguration {
   /// A task list marker style that displays a checkmark inside a square if the item is completed
   /// or a hollow square if the item is not completed.
   public static var checkmarkSquare: Self {
-    BlockStyle { configuration in
+    BlockStyle(builtinTaskMarker: .checkmarkSquare) { configuration in
       Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
         .symbolRenderingMode(.hierarchical)
         .imageScale(.small)

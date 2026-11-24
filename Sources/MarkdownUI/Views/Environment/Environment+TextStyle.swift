@@ -39,6 +39,17 @@ extension EnvironmentValues {
     get { self[TextStyleAttributesKey.self] }
     set { self[TextStyleAttributesKey.self] = newValue }
   }
+
+  /// Background color already painted by the enclosing `Markdown` root view, allowing
+  /// single-pass text renderers to skip redundant per-run `AttributedString` background fills.
+  var rootTextBackgroundColor: Color? {
+    get { self[RootTextBackgroundColorKey.self] }
+    set { self[RootTextBackgroundColorKey.self] = newValue }
+  }
+}
+
+private struct RootTextBackgroundColorKey: EnvironmentKey {
+  static let defaultValue: Color? = nil
 }
 
 private struct TextStyleAttributesKey: EnvironmentKey {

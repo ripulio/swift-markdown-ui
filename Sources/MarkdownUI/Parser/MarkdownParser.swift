@@ -161,11 +161,56 @@ private typealias UnsafeNode = UnsafeMutablePointer<cmark_node>
 
 extension UnsafeNode {
   fileprivate var nodeType: NodeType {
-    let typeString = String(cString: cmark_node_get_type_string(self))
-    guard let nodeType = NodeType(rawValue: typeString) else {
-      fatalError("Unknown node type '\(typeString)' found.")
+    let raw = cmark_node_get_type(self)
+    switch raw {
+    case CMARK_NODE_DOCUMENT: return .document
+    case CMARK_NODE_BLOCK_QUOTE: return .blockquote
+    case CMARK_NODE_LIST: return .list
+    case CMARK_NODE_ITEM:
+      if cmark_node_get_syntax_extension(self) != nil,
+        let typeCString = cmark_node_get_type_string(self),
+        strcmp(typeCString, "tasklist") == 0
+      {
+        return .taskListItem
+      }
+      return .item
+    case CMARK_NODE_CODE_BLOCK: return .codeBlock
+    case CMARK_NODE_HTML_BLOCK: return .htmlBlock
+    case CMARK_NODE_CUSTOM_BLOCK: return .customBlock
+    case CMARK_NODE_PARAGRAPH: return .paragraph
+    case CMARK_NODE_HEADING: return .heading
+    case CMARK_NODE_THEMATIC_BREAK: return .thematicBreak
+    case CMARK_NODE_TEXT: return .text
+    case CMARK_NODE_SOFTBREAK: return .softBreak
+    case CMARK_NODE_LINEBREAK: return .lineBreak
+    case CMARK_NODE_CODE: return .code
+    case CMARK_NODE_HTML_INLINE: return .html
+    case CMARK_NODE_CUSTOM_INLINE: return .customInline
+    case CMARK_NODE_EMPH: return .emphasis
+    case CMARK_NODE_STRONG: return .strong
+    case CMARK_NODE_LINK: return .link
+    case CMARK_NODE_IMAGE: return .image
+    case CMARK_NODE_NONE: return .none
+    default:
+      let ext = ExtensionNodeTypes.shared
+      if raw == ext.CMARK_NODE_TABLE {
+        return .table
+      }
+      if raw == ext.CMARK_NODE_TABLE_ROW {
+        return cmark_gfm_extensions_get_table_row_is_header(self) != 0 ? .tableHead : .tableRow
+      }
+      if raw == ext.CMARK_NODE_TABLE_CELL {
+        return .tableCell
+      }
+      if raw == ext.CMARK_NODE_STRIKETHROUGH {
+        return .strikethrough
+      }
+      let typeString = String(cString: cmark_node_get_type_string(self))
+      guard let nodeType = NodeType(rawValue: typeString) else {
+        fatalError("Unknown node type '\(typeString)' found.")
+      }
+      return nodeType
     }
-    return nodeType
   }
 
   fileprivate var children: UnsafeNodeSequence {
@@ -225,25 +270,13 @@ extension UnsafeNode {
     _ markdown: String,
     body: (UnsafeNode) throws -> ResultType
   ) rethrows -> ResultType? {
-    cmark_gfm_core_extensions_ensure_registered()
-
-    // Create a Markdown parser and attach the GitHub syntax extensions
+    // Create a Markdown parser and attach the cached GitHub syntax extensions
+    let extensions = CachedSyntaxExtensions.shared.extensions
 
     let parser = cmark_parser_new(CMARK_OPT_DEFAULT)
     defer { cmark_parser_free(parser) }
 
-    let extensionNames: Set<String>
-
-    if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) {
-      extensionNames = ["autolink", "strikethrough", "tagfilter", "tasklist", "table"]
-    } else {
-      extensionNames = ["autolink", "strikethrough", "tagfilter", "tasklist"]
-    }
-
-    for extensionName in extensionNames {
-      guard let syntaxExtension = cmark_find_syntax_extension(extensionName) else {
-        continue
-      }
+    for syntaxExtension in extensions {
       cmark_parser_attach_syntax_extension(parser, syntaxExtension)
     }
 
@@ -485,6 +518,23 @@ private struct UnsafeNodeSequence: Sequence {
 
 // Extension node types are not exported in `cmark_gfm_extensions`,
 // so we need to look for them in the symbol table
+private final class CachedSyntaxExtensions: @unchecked Sendable {
+  let extensions: [UnsafeMutablePointer<cmark_syntax_extension>]
+
+  static let shared = CachedSyntaxExtensions()
+
+  private init() {
+    cmark_gfm_core_extensions_ensure_registered()
+    let extensionNames: [String]
+    if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) {
+      extensionNames = ["autolink", "strikethrough", "tagfilter", "tasklist", "table"]
+    } else {
+      extensionNames = ["autolink", "strikethrough", "tagfilter", "tasklist"]
+    }
+    self.extensions = extensionNames.compactMap { cmark_find_syntax_extension($0) }
+  }
+}
+
 private struct ExtensionNodeTypes {
   let CMARK_NODE_TABLE: cmark_node_type
   let CMARK_NODE_TABLE_ROW: cmark_node_type

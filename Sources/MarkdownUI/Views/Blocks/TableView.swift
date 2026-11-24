@@ -1,7 +1,7 @@
 import SwiftUI
 
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
-struct TableView: View {
+struct TableView: View, Equatable {
   @Environment(\.theme.table) private var table
 
   private let columnAlignments: [RawTableColumnAlignment]
@@ -10,6 +10,10 @@ struct TableView: View {
   init(columnAlignments: [RawTableColumnAlignment], rows: [RawTableRow]) {
     self.columnAlignments = columnAlignments
     self.rows = rows
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.columnAlignments == rhs.columnAlignments && lhs.rows == rhs.rows
   }
 
   var body: some View {
@@ -29,7 +33,9 @@ private struct TableContentView: View {
   @Environment(\.tableBorderStyle.strokeStyle.lineWidth) private var borderWidth
   @Environment(\.tableLayoutStyle) private var layoutStyle
   @Environment(\.tableCellStyle) private var tableCellStyle
+  @Environment(\.theme.tableCell) private var themeTableCell
   @Environment(\.textStyleAttributes) private var textStyleAttributes
+  @Environment(\.rootTextBackgroundColor) private var rootTextBackgroundColor
   @Environment(\.theme.inlineTextStyles) private var inlineStyles
   @Environment(\.baseURL) private var baseURL
   @Environment(\.softBreakMode) private var softBreakMode
@@ -39,10 +45,56 @@ private struct TableContentView: View {
   let columnAlignments: [RawTableColumnAlignment]
   let rows: [RawTableRow]
 
+  private var resolvedBuiltinCellStyle: MarkdownTableCellStyle? {
+    guard self.tableCellStyle == nil else {
+      return nil
+    }
+    guard let kind = self.themeTableCell.builtinTableCellKind else {
+      return nil
+    }
+    let fontProperties = self.textStyleAttributes.fontProperties
+    switch kind {
+    case .basic:
+      let h = RelativeSize.em(0.72).points(relativeTo: fontProperties)
+      let v = RelativeSize.em(0.35).points(relativeTo: fontProperties)
+      return MarkdownTableCellStyle(
+        headerFontWeight: .semibold,
+        lineSpacing: .em(0.15),
+        padding: EdgeInsets(top: v, leading: h, bottom: v, trailing: h)
+      )
+    case .gitHub:
+      return MarkdownTableCellStyle(
+        headerFontWeight: .semibold,
+        lineSpacing: .em(0.25),
+        padding: EdgeInsets(top: 6, leading: 13, bottom: 6, trailing: 13)
+      )
+    case .docC:
+      let p = RelativeSize.rem(0.58824).points(relativeTo: fontProperties)
+      return MarkdownTableCellStyle(
+        headerFontWeight: .semibold,
+        lineSpacing: .em(0.235295),
+        padding: EdgeInsets(top: p, leading: p, bottom: p, trailing: p)
+      )
+    case .chat:
+      if case .automatic = self.layoutStyle {
+        return nil
+      }
+      return MarkdownTableCellStyle(
+        headerFontWeight: .semibold,
+        lineSpacing: .em(0.2),
+        padding: EdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10)
+      )
+    }
+  }
+
+  private var effectiveCellStyle: MarkdownTableCellStyle? {
+    self.tableCellStyle ?? self.resolvedBuiltinCellStyle
+  }
+
   private var usesDirectBoundsDecoration: Bool {
     switch self.layoutStyle {
     case .automatic:
-      return false
+      return self.resolvedBuiltinCellStyle != nil && self.canUseCompactCells(for: self.resolvedBuiltinCellStyle)
     case .adaptive, .adaptiveDynamic:
       return true
     }
@@ -71,7 +123,7 @@ private struct TableContentView: View {
   }
 
   @ViewBuilder private var styledCells: some View {
-    if let lineSpacing = self.tableCellStyle?.lineSpacing {
+    if let lineSpacing = self.effectiveCellStyle?.lineSpacing {
       self.cells
         .lineSpacing(lineSpacing.points(relativeTo: self.textStyleAttributes.fontProperties))
     } else {
@@ -81,8 +133,9 @@ private struct TableContentView: View {
 
   @ViewBuilder private var cells: some View {
     let directDecoration = self.usesDirectBoundsDecoration
-    let useCompactCells = self.canUseCompactDirectCells(directDecoration: directDecoration)
-    let compactPadding = useCompactCells ? self.tableCellStyle?.padding : nil
+    let activeCellStyle = self.effectiveCellStyle
+    let useCompactCells = directDecoration && self.canUseCompactCells(for: activeCellStyle)
+    let compactPadding = useCompactCells ? activeCellStyle?.padding : nil
     let compactAlignments = useCompactCells ? self.columnAlignments.map(TextAlignment.init) : []
     let borderWidth = self.borderWidth
     let boundsBox = self.boundsBox
@@ -94,7 +147,19 @@ private struct TableContentView: View {
 
     switch self.layoutStyle {
     case .automatic:
-      self.grid
+      if useCompactCells, let cellStyle = activeCellStyle {
+        AutomaticTableLayout(
+          columnCount: self.columnCount,
+          spacing: self.borderWidth,
+          cellPadding: cellStyle.padding,
+          columnAlignments: compactAlignments,
+          onResolveBounds: resolveBounds
+        ) {
+          self.compactCellItems(cellStyle: cellStyle, appliesMultilineAlignment: false)
+        }
+      } else {
+        self.grid
+      }
     case let .adaptive(availableWidth, minimumColumnWidth, maximumColumnWidth, overflow):
       AdaptiveTableLayout(
         columnCount: self.columnCount,
@@ -104,12 +169,15 @@ private struct TableContentView: View {
         maximumColumnWidth: maximumColumnWidth,
         overflow: overflow,
         onResolveBounds: resolveBounds,
+        cachesMeasurements: true,
+        canReuseUnwrappedCellHeights: useCompactCells || !self.hasImageCells,
         cellPadding: compactPadding,
         columnAlignments: compactAlignments
       ) {
         self.adaptiveCellItems(
           directDecoration: directDecoration,
-          useCompactCells: useCompactCells
+          useCompactCells: useCompactCells,
+          cellStyle: activeCellStyle
         )
       }
     case let .adaptiveDynamic(configuration):
@@ -134,15 +202,15 @@ private struct TableContentView: View {
       ) {
         self.adaptiveCellItems(
           directDecoration: directDecoration,
-          useCompactCells: useCompactCells
+          useCompactCells: useCompactCells,
+          cellStyle: activeCellStyle
         )
       }
     }
   }
 
-  private func canUseCompactDirectCells(directDecoration: Bool) -> Bool {
-    guard directDecoration,
-      self.tableCellStyle != nil,
+  private func canUseCompactCells(for cellStyle: MarkdownTableCellStyle?) -> Bool {
+    guard cellStyle != nil,
       self.columnCount > 0,
       self.rowCount > 0
     else {
@@ -161,48 +229,68 @@ private struct TableContentView: View {
     return true
   }
 
+  @ViewBuilder private func compactCellItems(
+    cellStyle: MarkdownTableCellStyle,
+    appliesMultilineAlignment: Bool = true
+  ) -> some View {
+    let cellAttributes: AttributeContainer = {
+      if self.themeTableCell.builtinTableCellKind == .gitHub
+        || self.themeTableCell.builtinTableCellKind == .chat
+      {
+        var stripped = self.textStyleAttributes
+        stripped.backgroundColor = nil
+        return stripped
+      }
+      return self.textStyleAttributes
+    }()
+    let bodyCache = InlineAttributesCache.lookup(
+      attributes: cellAttributes,
+      inlineStyles: self.inlineStyles,
+      ignoredBackgroundColor: self.rootTextBackgroundColor
+    )
+    let headerCache: PrecomputedInlineAttributes = {
+      guard let weight = cellStyle.headerFontWeight else { return bodyCache }
+      return InlineAttributesCache.lookup(
+        attributes: cellAttributes,
+        inlineStyles: self.inlineStyles,
+        overrideWeight: weight,
+        ignoredBackgroundColor: self.rootTextBackgroundColor
+      )
+    }()
+    let alignments = self.columnAlignments.map(TextAlignment.init)
+    let allLeading = !appliesMultilineAlignment || alignments.allSatisfy { $0 == .leading }
+    if allLeading {
+      StaticViewBatch(count: self.rowCount * self.columnCount) { index in
+        let row = index / self.columnCount
+        let column = index % self.columnCount
+        self.rows[row].cells[column].content.renderCompactText(
+          baseURL: self.baseURL,
+          softBreakMode: self.softBreakMode,
+          cache: row == 0 ? headerCache : bodyCache
+        )
+      }
+    } else {
+      StaticViewBatch(count: self.rowCount * self.columnCount) { index in
+        let row = index / self.columnCount
+        let column = index % self.columnCount
+        self.rows[row].cells[column].content.renderCompactText(
+          baseURL: self.baseURL,
+          softBreakMode: self.softBreakMode,
+          cache: row == 0 ? headerCache : bodyCache
+        )
+        .multilineTextAlignment(alignments[column])
+      }
+    }
+  }
+
   @ViewBuilder private func adaptiveCellItems(
     directDecoration: Bool,
-    useCompactCells: Bool
+    useCompactCells: Bool,
+    cellStyle: MarkdownTableCellStyle?
   ) -> some View {
-    if useCompactCells, let cellStyle = self.tableCellStyle {
-      let bodyCache = InlineAttributesCache.lookup(
-        attributes: self.textStyleAttributes,
-        inlineStyles: self.inlineStyles
-      )
-      let headerCache: PrecomputedInlineAttributes = {
-        guard let weight = cellStyle.headerFontWeight else { return bodyCache }
-        return InlineAttributesCache.lookup(
-          attributes: self.textStyleAttributes,
-          inlineStyles: self.inlineStyles,
-          overrideWeight: weight
-        )
-      }()
-      let alignments = self.columnAlignments.map(TextAlignment.init)
-      let allLeading = alignments.allSatisfy { $0 == .leading }
-      if allLeading {
-        StaticViewBatch(count: self.rowCount * self.columnCount) { index in
-          let row = index / self.columnCount
-          let column = index % self.columnCount
-          self.rows[row].cells[column].content.renderCompactText(
-            baseURL: self.baseURL,
-            softBreakMode: self.softBreakMode,
-            cache: row == 0 ? headerCache : bodyCache
-          )
-        }
-      } else {
-        StaticViewBatch(count: self.rowCount * self.columnCount) { index in
-          let row = index / self.columnCount
-          let column = index % self.columnCount
-          self.rows[row].cells[column].content.renderCompactText(
-            baseURL: self.baseURL,
-            softBreakMode: self.softBreakMode,
-            cache: row == 0 ? headerCache : bodyCache
-          )
-          .multilineTextAlignment(alignments[column])
-        }
-      }
-    } else if directDecoration, let cellStyle = self.tableCellStyle {
+    if useCompactCells, let cellStyle {
+      self.compactCellItems(cellStyle: cellStyle)
+    } else if directDecoration, let cellStyle {
       ForEach(0..<(self.rowCount * self.columnCount), id: \.self) { index in
         let row = index / self.columnCount
         let column = index % self.columnCount
@@ -393,8 +481,12 @@ private struct TableBorderGroupShape: Shape {
 
   func path(in _: CGRect) -> Path {
     var path = Path()
-    guard let tableBounds = self.boundsBox.value else { return path }
-    let groups = self.groupBuilder(tableBounds, self.borderWidth)
+    guard let groups = self.boundsBox.disjointGroups(
+      borderWidth: self.borderWidth,
+      builder: self.groupBuilder
+    ) else {
+      return path
+    }
     guard self.groupIndex < groups.count else { return path }
     let halfWidth = self.borderWidth / 2
     let insetShape = Rectangle().inset(by: halfWidth)

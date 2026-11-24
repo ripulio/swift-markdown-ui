@@ -15,7 +15,7 @@ public struct ListMarkerConfiguration {
 extension BlockStyle where Configuration == ListMarkerConfiguration {
   /// A list marker style that uses decimal numbers beginning with 1.
   public static var decimal: Self {
-    BlockStyle { configuration in
+    BlockStyle(builtinNumberedMarker: .decimal) { configuration in
       Text("\(configuration.itemNumber).")
         .monospacedDigit()
         .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
@@ -24,7 +24,7 @@ extension BlockStyle where Configuration == ListMarkerConfiguration {
 
   /// A list marker style that uses uppercase roman numerals beginning with `I`.
   public static var upperRoman: Self {
-    BlockStyle { configuration in
+    BlockStyle(builtinNumberedMarker: .upperRoman) { configuration in
       Text(configuration.itemNumber.roman + ".")
         .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
     }
@@ -32,7 +32,7 @@ extension BlockStyle where Configuration == ListMarkerConfiguration {
 
   /// A list marker style that uses lowercase roman numerals beginning with `i`.
   public static var lowerRoman: Self {
-    BlockStyle { configuration in
+    BlockStyle(builtinNumberedMarker: .lowerRoman) { configuration in
       Text(configuration.itemNumber.roman.lowercased() + ".")
         .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
     }
@@ -40,7 +40,7 @@ extension BlockStyle where Configuration == ListMarkerConfiguration {
 
   /// A list marker style that uses a dash.
   public static var dash: Self {
-    BlockStyle { _ in
+    BlockStyle(builtinNumberedMarker: .dash) { _ in
       Text("-")
         .relativeFrame(minWidth: .em(1.5), alignment: .trailing)
     }

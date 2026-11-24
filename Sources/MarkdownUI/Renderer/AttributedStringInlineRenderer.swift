@@ -6,21 +6,38 @@ struct DirectTextStyle {
   let kern: CGFloat?
   let tracking: CGFloat?
   let baselineOffset: CGFloat?
+  let hasSingleStrikethrough: Bool
+  let hasSingleUnderline: Bool
   let fallbackAttributes: AttributeContainer?
 
-  init(resolved: AttributeContainer) {
+  init(resolved: AttributeContainer, ignoredBackgroundColor: Color? = nil) {
     var probe = resolved
     probe.font = nil
     probe.foregroundColor = nil
     probe.kern = nil
     probe.tracking = nil
     probe.baselineOffset = nil
+
+    let singleStrike = (resolved.strikethroughStyle == .single)
+    if singleStrike {
+      probe.strikethroughStyle = nil
+    }
+    let singleUnderline = (resolved.underlineStyle == .single)
+    if singleUnderline {
+      probe.underlineStyle = nil
+    }
+    if let ignoredBackgroundColor, resolved.backgroundColor == ignoredBackgroundColor {
+      probe.backgroundColor = nil
+    }
+
     if probe == AttributeContainer() {
       self.font = resolved.font
       self.foregroundColor = resolved.foregroundColor
       self.kern = resolved.kern
       self.tracking = resolved.tracking
       self.baselineOffset = resolved.baselineOffset
+      self.hasSingleStrikethrough = singleStrike
+      self.hasSingleUnderline = singleUnderline
       self.fallbackAttributes = nil
     } else {
       self.font = nil
@@ -28,6 +45,8 @@ struct DirectTextStyle {
       self.kern = nil
       self.tracking = nil
       self.baselineOffset = nil
+      self.hasSingleStrikethrough = false
+      self.hasSingleUnderline = false
       self.fallbackAttributes = resolved
     }
   }
@@ -53,6 +72,12 @@ struct DirectTextStyle {
     if let baselineOffset {
       text = text.baselineOffset(baselineOffset)
     }
+    if self.hasSingleStrikethrough {
+      text = text.strikethrough(true)
+    }
+    if self.hasSingleUnderline {
+      text = text.underline(true)
+    }
     return text
   }
 }
@@ -62,6 +87,7 @@ final class PrecomputedInlineAttributes {
   let resolvedBase: AttributeContainer
   let directBase: DirectTextStyle
   let inlineStyles: InlineTextStyles
+  let ignoredBackgroundColor: Color?
 
   private var cachedCode: AttributeContainer?
   private var cachedDirectCode: DirectTextStyle?
@@ -76,12 +102,17 @@ final class PrecomputedInlineAttributes {
   init(
     attributes: AttributeContainer,
     inlineStyles: InlineTextStyles,
+    ignoredBackgroundColor: Color? = nil,
     prewarmAll: Bool = false
   ) {
     self.base = attributes
     let resolvedBase = AttributedStringInlineRenderer.resolvingFont(in: attributes)
     self.resolvedBase = resolvedBase
-    self.directBase = DirectTextStyle(resolved: resolvedBase)
+    self.ignoredBackgroundColor = ignoredBackgroundColor
+    self.directBase = DirectTextStyle(
+      resolved: resolvedBase,
+      ignoredBackgroundColor: ignoredBackgroundColor
+    )
     self.inlineStyles = inlineStyles
     if prewarmAll {
       _ = self.directCode()
@@ -103,7 +134,10 @@ final class PrecomputedInlineAttributes {
 
   func directCode() -> DirectTextStyle {
     if let cached = self.cachedDirectCode { return cached }
-    let direct = DirectTextStyle(resolved: self.resolvedCode())
+    let direct = DirectTextStyle(
+      resolved: self.resolvedCode(),
+      ignoredBackgroundColor: self.ignoredBackgroundColor
+    )
     self.cachedDirectCode = direct
     return direct
   }
@@ -119,7 +153,10 @@ final class PrecomputedInlineAttributes {
 
   func directStrong() -> DirectTextStyle {
     if let cached = self.cachedDirectStrong { return cached }
-    let direct = DirectTextStyle(resolved: self.resolvedStrong())
+    let direct = DirectTextStyle(
+      resolved: self.resolvedStrong(),
+      ignoredBackgroundColor: self.ignoredBackgroundColor
+    )
     self.cachedDirectStrong = direct
     return direct
   }
@@ -135,7 +172,10 @@ final class PrecomputedInlineAttributes {
 
   func directEmphasis() -> DirectTextStyle {
     if let cached = self.cachedDirectEmphasis { return cached }
-    let direct = DirectTextStyle(resolved: self.resolvedEmphasis())
+    let direct = DirectTextStyle(
+      resolved: self.resolvedEmphasis(),
+      ignoredBackgroundColor: self.ignoredBackgroundColor
+    )
     self.cachedDirectEmphasis = direct
     return direct
   }
@@ -151,7 +191,10 @@ final class PrecomputedInlineAttributes {
 
   func directStrikethrough() -> DirectTextStyle {
     if let cached = self.cachedDirectStrikethrough { return cached }
-    let direct = DirectTextStyle(resolved: self.resolvedStrikethrough())
+    let direct = DirectTextStyle(
+      resolved: self.resolvedStrikethrough(),
+      ignoredBackgroundColor: self.ignoredBackgroundColor
+    )
     self.cachedDirectStrikethrough = direct
     return direct
   }
@@ -173,6 +216,7 @@ enum InlineAttributesCache {
     let overrideWeight: Font.Weight?
     let overrideSize: RelativeSize?
     let overrideForegroundColor: Color?
+    let ignoredBackgroundColor: Color?
     let value: PrecomputedInlineAttributes
   }
 
@@ -184,7 +228,8 @@ enum InlineAttributesCache {
     inlineStyles: InlineTextStyles,
     overrideWeight: Font.Weight? = nil,
     overrideSize: RelativeSize? = nil,
-    overrideForegroundColor: Color? = nil
+    overrideForegroundColor: Color? = nil,
+    ignoredBackgroundColor: Color? = nil
   ) -> PrecomputedInlineAttributes {
     let revision = inlineStyles.revision
     Self.lock.lock()
@@ -193,6 +238,7 @@ enum InlineAttributesCache {
         && $0.overrideWeight == overrideWeight
         && $0.overrideSize == overrideSize
         && $0.overrideForegroundColor == overrideForegroundColor
+        && $0.ignoredBackgroundColor == ignoredBackgroundColor
         && $0.base == attributes
     }) {
       let entry = Self.entries[hitIndex]
@@ -219,11 +265,12 @@ enum InlineAttributesCache {
     let built = PrecomputedInlineAttributes(
       attributes: effective,
       inlineStyles: inlineStyles,
+      ignoredBackgroundColor: ignoredBackgroundColor,
       prewarmAll: true
     )
 
     Self.lock.lock()
-    if Self.entries.count >= 24 {
+    if Self.entries.count >= 32 {
       Self.entries.removeLast()
     }
     Self.entries.insert(
@@ -233,6 +280,7 @@ enum InlineAttributesCache {
         overrideWeight: overrideWeight,
         overrideSize: overrideSize,
         overrideForegroundColor: overrideForegroundColor,
+        ignoredBackgroundColor: ignoredBackgroundColor,
         value: built
       ),
       at: 0

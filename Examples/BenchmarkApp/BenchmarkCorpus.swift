@@ -25,12 +25,12 @@ struct BenchmarkSample: Identifiable, Hashable {
         markdown: """
           ## Release Summary
 
-          `MarkdownUI` 2.5 resolves block spacing directly from the parsed syntax tree on pass 1, eliminating **all** `PreferenceKey` height jumps during scrolling and token streaming.
+          `MarkdownUI` 2.6 resolves block margins, lists, and tables directly from the parsed syntax tree on pass 1, eliminating **all** `PreferenceKey` height jumps during scrolling and token streaming.
 
           - **Single-pass heights:** First-pass height matches settled height (`Δ 0.0pt`).
-          - **Direct `Text(verbatim:)` runs:** Avoids per-span `AttributedString` dictionary bridging.
-          - **Adaptive GFM tables:** Keeps narrow columns compact and scrolls wide tables cleanly.
-          - **Native selection:** Supports `.textSelection(.enabled)` across paragraphs, lists, and code.
+          - **Direct `Text(verbatim:)` runs:** Avoids per-span `AttributedString` dictionary bridging across all built-in themes.
+          - **Adaptive & automatic GFM tables:** Keeps narrow columns compact and scrolls wide tables cleanly.
+          - **O(1) live streaming:** Completed blocks stay memoized as tokens stream into the trailing block.
 
           ```swift
           Markdown(message.markdown)
@@ -50,6 +50,20 @@ struct BenchmarkSample: Identifiable, Hashable {
         title: "Bullet List (16 Items)",
         subtitle: "BulletedListLayout + cached cap-center probe",
         markdown: bullets16
+      ),
+      BenchmarkSample(
+        id: "ordered_and_tasks",
+        title: "Numbered, Nested & Task Lists",
+        subtitle: "Single-pass NumberedListLayout + flattened nested bullets",
+        markdown:
+          (1...10).map {
+            "\($0). **Step \($0):** Single-pass baseline-aligned marker with `code` and **bold**."
+          }.joined(separator: "\n")
+          + "\n\n"
+          + (1...3).map { s in
+            "- **Group \(s):** Parent bullet\n  - Child A with *emphasis*\n  - Child B with `inline_code()`"
+          }.joined(separator: "\n")
+          + "\n\n- [x] Single-pass automatic tables\n- [x] Prefix-stable streaming batches\n- [ ] Ship `2.6.0`"
       ),
       BenchmarkSample(
         id: "table",
@@ -95,7 +109,7 @@ struct BenchmarkSample: Identifiable, Hashable {
         id: "short",
         title: "Short Bubble",
         subtitle: "Single-line chat acknowledgment",
-        markdown: "Updated to `MarkdownUI 2.5.1` — single-pass layout verified across all themes."
+        markdown: "Updated to `MarkdownUI 2.6.0` — single-pass layout and O(1) streaming verified across all themes."
       ),
     ]
   }()

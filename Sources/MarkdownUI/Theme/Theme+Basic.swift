@@ -20,18 +20,19 @@ extension Theme {
         FontFamilyVariant(.monospaced)
         FontSize(.em(0.94))
       }
-      .tableCell { configuration in
-        configuration.label
-          .markdownTextStyle {
-            if configuration.row == 0 {
-              FontWeight(.semibold)
-            }
+
+    theme.tableCell = BlockStyle(revision: 19) { configuration in
+      configuration.label
+        .markdownTextStyle {
+          if configuration.row == 0 {
+            FontWeight(.semibold)
           }
-          .fixedSize(horizontal: false, vertical: true)
-          .relativeLineSpacing(.em(0.15))
-          .relativePadding(.horizontal, length: .em(0.72))
-          .relativePadding(.vertical, length: .em(0.35))
-      }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .relativeLineSpacing(.em(0.15))
+        .relativePadding(.horizontal, length: .em(0.72))
+        .relativePadding(.vertical, length: .em(0.35))
+    }
 
     let headingSizes: [RelativeSize] = [
       .em(2), .em(1.5), .em(1.17), .em(1), .em(0.83), .em(0.67),

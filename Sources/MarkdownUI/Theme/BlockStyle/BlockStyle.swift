@@ -89,6 +89,36 @@ public struct BlockStyle<Configuration>: Equatable {
     case discCircleSquare
   }
 
+  enum BuiltinNumberedMarker: Equatable {
+    case decimal
+    case upperRoman
+    case lowerRoman
+    case dash
+
+    func text(for itemNumber: Int) -> String {
+      switch self {
+      case .decimal:
+        return "\(itemNumber)."
+      case .upperRoman:
+        return itemNumber.roman + "."
+      case .lowerRoman:
+        return itemNumber.roman.lowercased() + "."
+      case .dash:
+        return "-"
+      }
+    }
+
+    var usesMonospacedDigit: Bool {
+      self == .decimal
+    }
+  }
+
+  enum BuiltinTaskMarker: Equatable {
+    case checkmarkSquare
+    case gitHubCheckmark(foreground: Color, background: Color)
+    case discBullet
+  }
+
   struct HeadingStyleSpec: Equatable {
     let fontWeight: Font.Weight?
     let fontSize: RelativeSize?
@@ -130,6 +160,8 @@ public struct BlockStyle<Configuration>: Equatable {
   let isIdentity: Bool
   let isMarginOnly: Bool
   let builtinBulletMarker: BuiltinBulletMarker?
+  let builtinNumberedMarker: BuiltinNumberedMarker?
+  let builtinTaskMarker: BuiltinTaskMarker?
   let paragraphLineSpacing: RelativeSize?
   let headingSpec: HeadingStyleSpec?
   let blockMargin: RelativeBlockMargin?
@@ -142,6 +174,23 @@ public struct BlockStyle<Configuration>: Equatable {
     self.revision == 11
   }
 
+  var builtinTableCellKind: BuiltinTableCellKind? {
+    switch self.revision {
+    case 11: return .chat
+    case 19: return .basic
+    case 20: return .gitHub
+    case 21: return .docC
+    default: return nil
+    }
+  }
+
+  enum BuiltinTableCellKind: Equatable {
+    case chat
+    case basic
+    case gitHub
+    case docC
+  }
+
   /// Creates a block style that customizes a block by applying the given body.
   /// - Parameter body: A view builder that returns the customized block.
   public init<Body: View>(@ViewBuilder body: @escaping (_ configuration: Configuration) -> Body) {
@@ -150,6 +199,8 @@ public struct BlockStyle<Configuration>: Equatable {
     self.isIdentity = false
     self.isMarginOnly = false
     self.builtinBulletMarker = nil
+    self.builtinNumberedMarker = nil
+    self.builtinTaskMarker = nil
     self.paragraphLineSpacing = nil
     self.headingSpec = nil
     self.blockMargin = nil
@@ -160,6 +211,8 @@ public struct BlockStyle<Configuration>: Equatable {
     isIdentity: Bool = false,
     isMarginOnly: Bool = false,
     builtinBulletMarker: BuiltinBulletMarker? = nil,
+    builtinNumberedMarker: BuiltinNumberedMarker? = nil,
+    builtinTaskMarker: BuiltinTaskMarker? = nil,
     paragraphLineSpacing: RelativeSize? = nil,
     headingSpec: HeadingStyleSpec? = nil,
     blockMargin: RelativeBlockMargin? = nil,
@@ -176,6 +229,19 @@ public struct BlockStyle<Configuration>: Equatable {
       case .square: self.revision = 4
       case .discCircleSquare: self.revision = 5
       }
+    } else if let builtinNumberedMarker {
+      switch builtinNumberedMarker {
+      case .decimal: self.revision = 12
+      case .upperRoman: self.revision = 13
+      case .lowerRoman: self.revision = 14
+      case .dash: self.revision = 15
+      }
+    } else if let builtinTaskMarker {
+      switch builtinTaskMarker {
+      case .checkmarkSquare: self.revision = 16
+      case .gitHubCheckmark: self.revision = 17
+      case .discBullet: self.revision = 18
+      }
     } else {
       self.revision = StyleRevisionID.next()
     }
@@ -183,6 +249,8 @@ public struct BlockStyle<Configuration>: Equatable {
     self.isIdentity = isIdentity
     self.isMarginOnly = isMarginOnly
     self.builtinBulletMarker = builtinBulletMarker
+    self.builtinNumberedMarker = builtinNumberedMarker
+    self.builtinTaskMarker = builtinTaskMarker
     self.paragraphLineSpacing = paragraphLineSpacing
     self.headingSpec = headingSpec
     self.blockMargin = blockMargin
@@ -191,6 +259,9 @@ public struct BlockStyle<Configuration>: Equatable {
   public static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.revision == rhs.revision
       && lhs.isMarginOnly == rhs.isMarginOnly
+      && lhs.builtinBulletMarker == rhs.builtinBulletMarker
+      && lhs.builtinNumberedMarker == rhs.builtinNumberedMarker
+      && lhs.builtinTaskMarker == rhs.builtinTaskMarker
       && lhs.paragraphLineSpacing == rhs.paragraphLineSpacing
       && lhs.headingSpec == rhs.headingSpec
       && lhs.blockMargin == rhs.blockMargin

@@ -8,6 +8,7 @@ struct InlineText: View {
   @Environment(\.lineSpacing) private var lineSpacing
   @Environment(\.inlineImageFlow) private var inlineImageFlow
   @Environment(\.textStyleAttributes) private var textStyleAttributes
+  @Environment(\.rootTextBackgroundColor) private var rootTextBackgroundColor
 
   private let inlines: [InlineNode]
   private let hasImages: Bool
@@ -33,7 +34,8 @@ struct InlineText: View {
   @ViewBuilder private var lightweightTextBody: some View {
     let cache = InlineAttributesCache.lookup(
       attributes: self.textStyleAttributes,
-      inlineStyles: self.inlineStyles
+      inlineStyles: self.inlineStyles,
+      ignoredBackgroundColor: self.rootTextBackgroundColor
     )
     if !self.inlines.hasMultipleTextChunks(softBreakMode: self.softBreakMode) {
       self.inlines.renderCompactText(
