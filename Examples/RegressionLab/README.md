@@ -1,35 +1,26 @@
-# Standalone Markdown regression app
+# Standalone Markdown Regression App
 
-This app uses the local MarkdownUI package directly. It has fixtures for inline
-spacing, mixed formatting, a 1,200-line paragraph, nested lists, images and tables.
-The controls change the fixture, Dynamic Type size and content without relaunching.
-UI tests read actual accessibility text and operate the app; no screenshot
-comparison is required.
+This standalone iOS app links the local `MarkdownUI` package directly and provides interactive fixtures plus automated XCUITest coverage for:
 
-Borrow an iPhone simulator with `ripul-train acquire simulators os=27 type=iPhone`,
-then run from the package root:
+- Whitespace preservation after styled line-start spans (upstream `#402`)
+- Long newline-heavy linked paragraphs (1,200 links) without UI or accessibility hangs (upstream `#312`)
+- Deeply nested lists (7 levels)
+- Inline/mixed linked images, nested alt labels, and `markdownInlineImageFlow()` in headings and table cells (upstream `#420` / `#439`)
+- Dynamic Type scaling compared against native SwiftUI body text
+
+UI tests inspect accessibility elements and interact with real controls directly—no snapshot baseline files are required.
+
+## Running Locally
+
+Generate the Xcode project with [XcodeGen](https://github.com/yonaskolb/XcodeGen) and run the UI test suite against an available iOS Simulator from the repository root:
 
 ```sh
 xcodegen generate --spec Examples/RegressionLab/project.yml
 xcodebuild -project Examples/RegressionLab/MarkdownRegressionLab.xcodeproj \
-  -scheme MarkdownRegressionLab -configuration Debug \
-  -destination 'platform=iOS Simulator,id=<leased-udid>' \
-  -derivedDataPath /tmp/ripul-markdown-lab-derived \
-  -parallel-testing-enabled NO -collect-test-diagnostics never test
+  -scheme MarkdownRegressionLab \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  test
 ```
 
-Keep the DerivedData path stable between iterations and release the simulator
-lease when finished. Use the installed Xcode with the required simulator SDK.
-
-Baseline on 26 October 2026: the iOS 27.1 standalone app reproduced issue #402:
-`Linkwithout`, `Emphasis Textshould`, `Strong emphasisshould`, `Deleted textshould`
-and `inline codeshould`. The seven-level nested-list interaction case passed;
-that does not establish a general performance bound for all nested documents.
-
-After fixes: all five UI tests pass. The long-text fixture also exposed an
-accessibility bottleneck: SwiftUI recomputed each link's geometry against one
-huge Text while XCTest took a snapshot. Splitting at existing rendered line
-breaks into bounded Text views restored interaction. Linked images now render
-within 320 points and their actual button opens the link. Nested alt labels are
-accessible. The larger-text control grows Markdown at the same rate as native
-body text (within the test's rounding tolerance).
+You can also open `Examples/RegressionLab/MarkdownRegressionLab.xcodeproj` in Xcode to toggle fixtures, Dynamic Type sizes, and content interactively without relaunching.

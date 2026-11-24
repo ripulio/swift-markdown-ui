@@ -46,8 +46,10 @@ private struct SampleBenchmarkResult: Identifiable {
   let chatMs: Double
   let basicMs: Double
   let gitHubMs: Double
+  let legacy241Ms: Double
   let plainTextMs: Double
-  let heightDeltaPt: CGFloat
+  let chatHeightDeltaPt: CGFloat
+  let legacyHeightDeltaPt: CGFloat
 }
 
 private struct BenchmarkSuiteView: View {
@@ -60,10 +62,10 @@ private struct BenchmarkSuiteView: View {
       List {
         Section {
           VStack(alignment: .leading, spacing: 10) {
-            Text("Cold Host Layout Benchmark (Width 400pt)")
+            Text("Attached-Host Settled Layout Benchmark (400pt)")
               .font(.headline)
             Text(
-              "Measures median cold SwiftUI host sizing & layout time across \(rounds) rounds per sample, plus pass-1 vs settled height convergence (Δ pt)."
+              "Attaches each view inside a real window/hosting controller, runs settle ticks until height converges, and reports median settled time across \(rounds) rounds plus pass-1 vs settled height jump (Δ pt). Legacy 2.4.1 uses upstream closure-based styles on the same host."
             )
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -90,10 +92,10 @@ private struct BenchmarkSuiteView: View {
         }
 
         if !results.isEmpty {
-          Section("Results (Lower ms is faster)") {
+          Section("Results — Settled Time (Lower ms is faster)") {
             ForEach(results) { item in
               VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(alignment: .top) {
                   VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
                       .font(.headline)
@@ -102,20 +104,27 @@ private struct BenchmarkSuiteView: View {
                       .foregroundStyle(.secondary)
                   }
                   Spacer()
-                  Text(String(format: "Δ %.1fpt", item.heightDeltaPt))
-                    .font(.caption.monospaced().weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                      (item.heightDeltaPt <= 0.5 ? Color.green : Color.orange).opacity(0.16),
-                      in: Capsule()
-                    )
+                  VStack(alignment: .trailing, spacing: 4) {
+                    Text(String(format: "2.5 Δ %.1fpt", item.chatHeightDeltaPt))
+                      .font(.caption2.monospaced().weight(.semibold))
+                      .padding(.horizontal, 7)
+                      .padding(.vertical, 2)
+                      .background(
+                        (item.chatHeightDeltaPt <= 0.5 ? Color.green : Color.orange).opacity(0.16),
+                        in: Capsule()
+                      )
+                    Text(String(format: "2.4.1 Δ %.1fpt", item.legacyHeightDeltaPt))
+                      .font(.caption2.monospaced())
+                      .foregroundStyle(.secondary)
+                  }
                 }
 
-                let maxMs = max(item.chatMs, item.basicMs, item.gitHubMs, item.plainTextMs, 0.1)
+                let maxMs = max(
+                  item.chatMs, item.basicMs, item.gitHubMs, item.legacy241Ms, item.plainTextMs, 0.1)
                 MetricBar(label: "Theme.chat", ms: item.chatMs, maxMs: maxMs, tint: .blue)
                 MetricBar(label: "Theme.basic", ms: item.basicMs, maxMs: maxMs, tint: .teal)
                 MetricBar(label: "Theme.gitHub", ms: item.gitHubMs, maxMs: maxMs, tint: .indigo)
+                MetricBar(label: "Legacy 2.4.1", ms: item.legacy241Ms, maxMs: maxMs, tint: .orange)
                 MetricBar(label: "Plain Text", ms: item.plainTextMs, maxMs: maxMs, tint: .secondary)
               }
               .padding(.vertical, 4)
@@ -130,9 +139,10 @@ private struct BenchmarkSuiteView: View {
   @MainActor
   private func runBenchmarks() {
     isRunning = true
+    let legacyBasic = LegacyUpstreamThemes.basic
     var measured: [SampleBenchmarkResult] = []
 
-    // Warm font caches once before timing.
+    // Warm font and layout caches once before timing.
     _ = HostMeasurer.measure(
       Markdown("Warmup **bold** `code`").markdownTheme(.chat),
       width: 400
@@ -157,9 +167,15 @@ private struct BenchmarkSuiteView: View {
           width: 400
         )
       }
+      let legacyRuns = (0..<rounds).map { _ in
+        HostMeasurer.measure(
+          Markdown(sample.markdown).markdownTheme(legacyBasic),
+          width: 400
+        )
+      }
       let plainRuns = (0..<rounds).map { _ in
         HostMeasurer.measure(
-          Text(sample.markdown).fixedSize(horizontal: false, vertical: true),
+          Text(verbatim: sample.markdown).fixedSize(horizontal: false, vertical: true),
           width: 400
         )
       }
@@ -169,11 +185,13 @@ private struct BenchmarkSuiteView: View {
           id: sample.id,
           title: sample.title,
           subtitle: sample.subtitle,
-          chatMs: Self.median(chatRuns.map(\.elapsedMs)),
-          basicMs: Self.median(basicRuns.map(\.elapsedMs)),
-          gitHubMs: Self.median(gitHubRuns.map(\.elapsedMs)),
-          plainTextMs: Self.median(plainRuns.map(\.elapsedMs)),
-          heightDeltaPt: chatRuns.first?.heightDelta ?? 0
+          chatMs: Self.median(chatRuns.map(\.settledMs)),
+          basicMs: Self.median(basicRuns.map(\.settledMs)),
+          gitHubMs: Self.median(gitHubRuns.map(\.settledMs)),
+          legacy241Ms: Self.median(legacyRuns.map(\.settledMs)),
+          plainTextMs: Self.median(plainRuns.map(\.settledMs)),
+          chatHeightDeltaPt: chatRuns.first?.heightDelta ?? 0,
+          legacyHeightDeltaPt: legacyRuns.first?.heightDelta ?? 0
         )
       )
     }
@@ -199,7 +217,7 @@ private struct MetricBar: View {
     HStack(spacing: 8) {
       Text(label)
         .font(.caption.monospaced())
-        .frame(width: 92, alignment: .leading)
+        .frame(width: 96, alignment: .leading)
 
       GeometryReader { geo in
         let fraction = max(0.03, min(1, ms / maxMs))
@@ -217,9 +235,124 @@ private struct MetricBar: View {
   }
 }
 
+/// Exact upstream 2.4.1 closure-based `Theme.basic` definition (triggers multi-pass
+/// `BlockMarginsPreference` and dynamic block styles on the exact same host).
+private enum LegacyUpstreamThemes {
+  static let basic: Theme = Theme()
+    .code {
+      FontFamilyVariant(.monospaced)
+      FontSize(.em(0.94))
+    }
+    .heading1 { configuration in
+      configuration.label
+        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+        .markdownTextStyle {
+          FontWeight(.semibold)
+          FontSize(.em(2))
+        }
+    }
+    .heading2 { configuration in
+      configuration.label
+        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+        .markdownTextStyle {
+          FontWeight(.semibold)
+          FontSize(.em(1.5))
+        }
+    }
+    .heading3 { configuration in
+      configuration.label
+        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+        .markdownTextStyle {
+          FontWeight(.semibold)
+          FontSize(.em(1.25))
+        }
+    }
+    .heading4 { configuration in
+      configuration.label
+        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+        .markdownTextStyle {
+          FontWeight(.semibold)
+        }
+    }
+    .heading5 { configuration in
+      configuration.label
+        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+        .markdownTextStyle {
+          FontWeight(.semibold)
+          FontSize(.em(0.875))
+        }
+    }
+    .heading6 { configuration in
+      configuration.label
+        .markdownMargin(top: .rem(1.5), bottom: .rem(1))
+        .markdownTextStyle {
+          FontWeight(.semibold)
+          FontSize(.em(0.85))
+        }
+    }
+    .paragraph { configuration in
+      configuration.label
+        .relativeLineSpacing(.em(0.15))
+        .markdownMargin(top: .zero, bottom: .em(1))
+    }
+    .blockquote { configuration in
+      configuration.label
+        .markdownTextStyle {
+          FontStyle(.italic)
+        }
+        .relativePadding(.leading, length: .em(1))
+        .overlay(alignment: .leading) {
+          Rectangle()
+            .fill(Color.secondary)
+            .frame(width: 4)
+        }
+        .markdownMargin(top: .zero, bottom: .em(1))
+    }
+    .codeBlock { configuration in
+      configuration.label
+        .relativeLineSpacing(.em(0.25))
+        .markdownTextStyle {
+          FontFamilyVariant(.monospaced)
+          FontSize(.em(0.85))
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .markdownMargin(top: .zero, bottom: .em(1))
+    }
+    .listItem { configuration in
+      configuration.label
+        .markdownMargin(top: .em(0.25))
+    }
+    .table { configuration in
+      configuration.label
+        .fixedSize(horizontal: false, vertical: true)
+        .markdownTableBorderStyle(.init(color: Color.secondary.opacity(0.4)))
+        .markdownMargin(top: .zero, bottom: .em(1))
+    }
+    .tableCell { configuration in
+      configuration.label
+        .markdownTextStyle {
+          if configuration.row == 0 {
+            FontWeight(.semibold)
+          }
+          BackgroundColor(nil)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 13)
+        .relativeLineSpacing(.em(0.25))
+    }
+    .thematicBreak {
+      Divider()
+        .markdownMargin(top: .em(1.5), bottom: .em(1.5))
+    }
+}
+
 private enum HostMeasurer {
   struct Timing {
-    let elapsedMs: Double
+    let firstPassMs: Double
+    let settledMs: Double
     let heightDelta: CGFloat
   }
 
@@ -227,25 +360,97 @@ private enum HostMeasurer {
   static func measure<V: View>(_ view: V, width: CGFloat) -> Timing {
     let constrained = view.frame(width: width, alignment: .leading)
     #if canImport(UIKit)
+      let hostWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 2400))
+      let parent = UIViewController()
+      hostWindow.rootViewController = parent
+      hostWindow.isHidden = false
+      defer {
+        hostWindow.isHidden = true
+        hostWindow.rootViewController = nil
+      }
+
+      let target = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
       let start = CACurrentMediaTime()
       let controller = UIHostingController(rootView: constrained)
-      let target = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
+      if #available(iOS 16.0, *) {
+        controller.sizingOptions = []
+      }
+      parent.addChild(controller)
+      parent.view.addSubview(controller.view)
+      controller.didMove(toParent: parent)
+      defer {
+        controller.willMove(toParent: nil)
+        controller.view.removeFromSuperview()
+        controller.removeFromParent()
+      }
+
       let firstHeight = controller.sizeThatFits(in: target).height
       controller.view.frame = CGRect(x: 0, y: 0, width: width, height: max(1, ceil(firstHeight)))
+      controller.view.setNeedsLayout()
       controller.view.layoutIfNeeded()
-      let elapsedMs = (CACurrentMediaTime() - start) * 1000
-      let settledHeight = controller.sizeThatFits(in: target).height
-      return Timing(elapsedMs: elapsedMs, heightDelta: abs(settledHeight - firstHeight))
+      let firstPassMs = (CACurrentMediaTime() - start) * 1000
+
+      var settledHeight = firstHeight
+      var settledMs = firstPassMs
+      for _ in 0..<4 {
+        let tickStart = CACurrentMediaTime()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.002))
+        let nextHeight = controller.sizeThatFits(in: target).height
+        let changed = abs(nextHeight - settledHeight) > 0.5
+        if changed {
+          settledHeight = nextHeight
+          controller.view.frame = CGRect(
+            x: 0, y: 0, width: width, height: max(1, ceil(settledHeight)))
+          controller.view.setNeedsLayout()
+          controller.view.layoutIfNeeded()
+          settledMs += (CACurrentMediaTime() - tickStart) * 1000
+        } else {
+          break
+        }
+      }
+      return Timing(
+        firstPassMs: firstPassMs,
+        settledMs: settledMs,
+        heightDelta: abs(settledHeight - firstHeight)
+      )
     #elseif canImport(AppKit)
+      let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: width, height: 2400),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+      )
+      defer { window.contentView = nil }
+
       let start = CACurrentMediaTime()
       let host = NSHostingView(rootView: constrained)
+      window.contentView = host
       host.frame = NSRect(x: 0, y: 0, width: width, height: 2400)
       host.layoutSubtreeIfNeeded()
       let firstHeight = host.fittingSize.height
-      let elapsedMs = (CACurrentMediaTime() - start) * 1000
-      host.layoutSubtreeIfNeeded()
-      let settledHeight = host.fittingSize.height
-      return Timing(elapsedMs: elapsedMs, heightDelta: abs(settledHeight - firstHeight))
+      let firstPassMs = (CACurrentMediaTime() - start) * 1000
+
+      var settledHeight = firstHeight
+      var settledMs = firstPassMs
+      for _ in 0..<4 {
+        let tickStart = CACurrentMediaTime()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.002))
+        host.layoutSubtreeIfNeeded()
+        let nextHeight = host.fittingSize.height
+        if abs(nextHeight - settledHeight) > 0.5 {
+          settledHeight = nextHeight
+          host.frame = NSRect(x: 0, y: 0, width: width, height: max(1, ceil(settledHeight)))
+          host.layoutSubtreeIfNeeded()
+          settledMs += (CACurrentMediaTime() - tickStart) * 1000
+        } else {
+          break
+        }
+      }
+      return Timing(
+        firstPassMs: firstPassMs,
+        settledMs: settledMs,
+        heightDelta: abs(settledHeight - firstHeight)
+      )
     #endif
   }
 }
@@ -290,7 +495,8 @@ private struct StreamingDemoView: View {
             .textSelection(.enabled)
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(
+              Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding()
       }

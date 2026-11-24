@@ -1,38 +1,43 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report a rendering, layout, streaming, or performance issue in MarkdownUI
 title: ''
 labels: ''
 assignees: ''
 
 ---
 
-Thank you for contributing to MarkdownUI!
-
-Before you submit an issue, please complete the report with all the relevant details for your bug and go through every item in the checklist.
+Thank you for reporting an issue in `ripulio/swift-markdown-ui`!
 
 **Describe the bug**
-A clear and concise description of what the bug is.
+A clear and concise description of what went wrong.
 
 **Checklist**
-- [ ] I can reproduce this issue with a vanilla SwiftUI project.
-- [ ] I can reproduce this issue using the `main` branch of this package.
-- [ ] This bug hasn't been addressed in an [existing GitHub issue](https://github.com/gonzalezreal/swift-markdown-ui/issues).
+- [ ] I can reproduce this issue on the latest release tag (or `ripul` branch).
+- [ ] This bug hasn't already been reported in an [existing GitHub issue](https://github.com/ripulio/swift-markdown-ui/issues).
 
-**Steps to reproduce**
-Explanation of how to reproduce the incorrect behavior. This could include an attached project, a link to code, or a Markdown-formatted text exhibiting the issue.
-1. ...
+**Minimal reproduction**
+Include the Markdown input, theme/modifiers used (e.g., `.markdownTheme(.chat)`), and container (`List`, `ScrollView`, etc.):
+
+```swift
+Markdown(
+  """
+  ...
+  """
+)
+.markdownTheme(.chat)
+```
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What you expected to happen.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Screenshots or recordings**
+If applicable, add screenshots or a short screen recording.
 
-**Version information**
-- MarkdownUI: [e.g. 2.0.0, or a commit hash]
-- OS: [e.g. iOS 15, macOS 13]
-- Xcode: [e.g. 14.2.0]
+**Environment**
+- MarkdownUI version: [e.g. `2.5.1`]
+- OS & Device: [e.g. iOS 18.4 on iPhone 16 Pro, macOS 15.4]
+- Xcode / Swift version: [e.g. Xcode 16.3, Swift 6.1]
 
 **Additional context**
-Add any other context about the problem here.
+Any extra details, thermal/perf traces, or workarounds.

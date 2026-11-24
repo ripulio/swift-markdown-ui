@@ -12,9 +12,9 @@ struct BenchmarkSample: Identifiable, Hashable {
     }.joined(separator: "\n")
 
     let table15x3 =
-      "| Construct | Upstream 2.4.1 | Ripul 2.5 |\n| :--- | ---: | ---: |\n"
+      "| Stage | Layout Path | Behavior |\n| :--- | :--- | ---: |\n"
       + (1...14).map {
-        "| Layout pass #\($0) (`400pt`) | \(18 + $0).4 ms | **\(3 + ($0 % 3)).\(($0 * 3) % 10) ms** |"
+        "| Pass #\($0) (`400pt`) | Single-pass tree margin & shape batch | **0.0 pt Δ** |"
       }.joined(separator: "\n")
 
     return [
@@ -25,11 +25,11 @@ struct BenchmarkSample: Identifiable, Hashable {
         markdown: """
           ## Release Summary
 
-          `MarkdownUI` 2.5 computes block spacing directly from the parsed syntax tree on pass 1, eliminating **all** `PreferenceKey` height jumps during scrolling and token streaming.
+          `MarkdownUI` 2.5 resolves block spacing directly from the parsed syntax tree on pass 1, eliminating **all** `PreferenceKey` height jumps during scrolling and token streaming.
 
-          - **Single-pass heights:** First-pass height equals settled height (`Δ 0.0pt`).
-          - **Direct `Text(verbatim:)` runs:** Skips per-span `AttributedString` dictionary bridging.
-          - **Adaptive GFM tables:** Fits readable columns to the viewport and scrolls wide data cleanly.
+          - **Single-pass heights:** First-pass height matches settled height (`Δ 0.0pt`).
+          - **Direct `Text(verbatim:)` runs:** Avoids per-span `AttributedString` dictionary bridging.
+          - **Adaptive GFM tables:** Keeps narrow columns compact and scrolls wide tables cleanly.
           - **Native selection:** Supports `.textSelection(.enabled)` across paragraphs, lists, and code.
 
           ```swift
@@ -38,11 +38,11 @@ struct BenchmarkSample: Identifiable, Hashable {
             .textSelection(.enabled)
           ```
 
-          | Sample | Markdown (`Theme.chat`) | Plain `SwiftUI.Text` |
-          | :--- | ---: | ---: |
-          | Rich AI Reply | **4.6 ms** | 7.2 ms |
-          | Bullet List | **3.5 ms** | 4.6 ms |
-          | Code Block | **2.4 ms** | 10.6 ms |
+          | Component | Layout Strategy | Height Jump |
+          | :--- | :--- | ---: |
+          | Prose & Headings | `DirectBlockSequenceView` | **0.0 pt** |
+          | Bulleted Lists | `BulletedListLayout` | **0.0 pt** |
+          | GFM Tables | `AdaptiveTableLayout` | **0.0 pt** |
           """
       ),
       BenchmarkSample(
@@ -95,7 +95,7 @@ struct BenchmarkSample: Identifiable, Hashable {
         id: "short",
         title: "Short Bubble",
         subtitle: "Single-line chat acknowledgment",
-        markdown: "Deployed commit `2.5.0` — all 86 tests and 35 pixel snapshots matched."
+        markdown: "Updated to `MarkdownUI 2.5.1` — single-pass layout verified across all themes."
       ),
     ]
   }()

@@ -7,10 +7,15 @@ on:
   pull_request:
     branches:
       - '*'
+  workflow_dispatch:
 jobs:
   tests:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Package.swift
+        run: swift package dump-package > /dev/null
+      - name: Build package
+        run: swift build
       - name: Run package tests
         run: swift test --skip FontPropertiesTests

@@ -73,34 +73,34 @@
     @MainActor
     func testStreamingAndIdleListLayoutConverges() {
       let streamingReply = """
-      Canary #8 (build 202611111534, b7304295d) is published.
+      Release candidate #8 (build 20261111, `b730429`) is ready for verification.
 
-      - **Studio:** already running the batch code; its Trainyard restarted on the new checkout at 15:30.
-      - **Mac mini:** still on the previous canary. Its host installs canary #8 once its agents are idle, and the Antigravity agent there is busy getting the acceptance run ready.
-      - **MacBook:** still stuck on c83d32c62. A `sudo` prompt has been waiting for your password there for 15 hours: the Shell chat running the Xcode 27.3 migration (`~/.ripul/xcode-migration-27.3/activate.sh`).
+      - **Primary build host:** already running the batch pipeline; its runner restarted cleanly on the new checkout at 15:30.
+      - **Secondary worker:** still on the previous release. Its scheduler installs candidate #8 once active jobs go idle, and the verification task there is preparing the acceptance suite.
+      - **Laptop node:** still paused on `c83d32c`. An interactive authorization prompt has been waiting for confirmation on the toolchain upgrade script (`~/.tooling/sdk-migration/activate.sh`).
 
-      Once the mini is on the new build and the Antigravity agent has replied with its plan, I'll check the plan and tell it to start the run.
+      Once the worker moves to the new build and reports its preflight summary, I'll review the checklist and start the run.
       """
 
       let nestedAcceptanceReply = """
-      The acceptance fixture is staged and pre-checked on the mini at `/Users/petermaude/repos/batch-acceptance-20261111` (no batch started yet).
+      The acceptance fixture is staged and pre-checked on the worker at `/var/tmp/fixtures/batch-acceptance-sample` (no batch started yet).
 
       ### 1. Prepared Fixture
-      - **Outside any git repository:** `/Users/petermaude/repos` has no `.git` above it and is outside guarded folders.
-      - **Script (`transcribe_sim.py`, 922 B, invoked via `/usr/bin/python3`):**
-        - Probing Studio + mini showed differing login-shell `node`/`python3` versions (`node` 23.6 vs 24.x), whereas `/usr/bin/python3` matches on both.
+      - **Isolated working directory:** `/var/tmp/fixtures` has no `.git` folder above it and sits outside watched workspaces.
+      - **Script (`worker_sim.py`, 922 B, invoked via `/usr/bin/python3`):**
+        - Probing both runners showed differing login-shell `node`/`python3` versions (`node` 22.6 vs 24.x), whereas `/usr/bin/python3` matches on both.
         - Runs `115,000,000` PBKDF2-HMAC-SHA256 iterations (~22 s of CPU work per item) and writes `{ input, host, digest }` to `{out}`.
       - **Inputs omitted from snapshot (~10.8 MB total):**
         - `inbox/item-01.raw` … `inbox/item-42.raw`: **42 files × 256 KB** passed via `--each 'inbox/*.raw'`.
         - `config/vocab.bin`: **64 KB** shared input passed via `--in config/vocab.bin`.
-        - Pre-checked with `takeSnapshot`: `git ls-tree -r` lists **only `transcribe_sim.py`**.
+        - Pre-checked with `takeSnapshot`: `git ls-tree -r` lists **only `worker_sim.py`**.
 
       1. **What is already proven today without live changes:**
-         - `xcode-signin.test.mjs` verifies `macInUse` (`HIDIdleTime < 300s && !screenLocked()`).
+         - `runner-idle.test.mjs` verifies `hostInUse` (`HIDIdleTime < 300s && !screenLocked()`).
          - `batches.test.mjs` proves end-to-end that `inUse: true` starts 0 items with a clear `waitReason`.
-      2. **If we also want a live multi-Mac daemon proof across Studio + mini:**
+      2. **If we also want a live multi-node daemon proof across two workers:**
          - Add a **batch-scoped** `pretendInUse` list stored on that batch record only.
-         - Start a 12-item batch across Studio + mini\nwith soft break inside bullet item.
+         - Start a 12-item batch across both workers\nwith soft break inside bullet item.
       """
 
       for selectable in [true, false] {

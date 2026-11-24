@@ -1,9 +1,12 @@
 blank_issues_enabled: false
 
 contact_links:
-  - name: Discussion
-    url: https://github.com/gonzalezreal/swift-markdown-ui/discussions
-    about: MarkdownUI Q&A, ideas, and more
-  - name: Documentation
-    url: https://swiftpackageindex.com/gonzalezreal/swift-markdown-ui/2.0.0/documentation/markdownui
-    about: MarkdownUI documentation
+  - name: Discussions
+    url: https://github.com/ripulio/swift-markdown-ui/discussions
+    about: MarkdownUI Q&A, theming tips, and ideas
+  - name: Documentation (DocC)
+    url: https://swiftpackageindex.com/ripulio/swift-markdown-ui/documentation/markdownui
+    about: API reference and guides hosted on Swift Package Index
+  - name: Built by Ripul
+    url: https://ripul.io
+    about: Learn about Ripul's native coding-agent app and iOS SDK

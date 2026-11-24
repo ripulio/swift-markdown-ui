@@ -99,7 +99,7 @@ import SwiftUI
 ///   }
 ///   // More block styles...
 /// ```
-public struct Theme: Equatable {
+public struct Theme: Equatable, @unchecked Sendable {
   private var textRevision: UInt64 = 1
   private var inlineStylesRevision: UInt64 = 1
 

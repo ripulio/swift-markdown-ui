@@ -6,7 +6,7 @@ struct DingusView: View {
     ## Try GitHub Flavored Markdown
 
     You can try **GitHub Flavored Markdown** here.  This dingus is powered
-    by [MarkdownUI](https://github.com/gonzalezreal/MarkdownUI), a native
+    by [MarkdownUI](https://github.com/ripulio/swift-markdown-ui), a native
     Markdown renderer for SwiftUI.
 
     1. item one

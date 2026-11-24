@@ -59,7 +59,7 @@ var body: some View {
 
 ![](MarkdownContentBuilder)
 
-You can also create a ``MarkdownContent`` value in your model layer and later create a `Markdown`
+You can also create a ``MarkdownContent`` value in your model layer (or on a background actor, since ``MarkdownContent`` conforms to `Sendable`) and later create a `Markdown`
 view by passing the content value to the ``Markdown/init(_:baseURL:imageBaseURL:)-42bru``
 initializer. The ``MarkdownContent`` value pre-parses the Markdown string preventing the view from
 doing this step.
@@ -95,8 +95,9 @@ Markdown {
 ![](BlockquoteContent)
 
 You can customize the appearance of Markdown content by applying different themes using the
-`markdownTheme(_:)` modifier. For example, you can apply one of the built-in themes, like
-``Theme/gitHub``, to either a Markdown view or a view hierarchy that contains Markdown views.
+`markdownTheme(_:)` modifier. For example, you can apply one of the built-in themes—``Theme/chat``,
+``Theme/gitHub``, ``Theme/docC``, or ``Theme/basic``—to either a Markdown view or a view hierarchy
+that contains Markdown views. All built-in themes automatically use the single-pass layout engine.
 
 ```swift
 Markdown {
