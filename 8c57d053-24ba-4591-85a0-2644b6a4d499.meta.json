@@ -5,6 +5,12 @@
       "sha": "e5ea7feee624f9252ef0dbc323106cf68e34adc0",
       "subject": "Replace dlsym extension lookup with public-API bootstrap (2.6.1)",
       "timestamp": "2026-11-24T21:37:00.000Z"
+    },
+    {
+      "repo": "ripul",
+      "sha": "39e043b5b87bf4f6646c1485f3a244696aa85cd6",
+      "subject": "chore(sdk): upgrade swift-markdown-ui to 2.6.1 (App Store dlsym fix + perf)",
+      "timestamp": "2026-11-24T21:45:37.000Z"
     }
   ],
   "contributors": [
@@ -46,6 +52,20 @@
       "kind": "delivered",
       "title": "Shipped swift-markdown-ui 2.6.0 perf release",
       "updatedAt": "2026-11-24T12:30:02.220Z"
+    },
+    {
+      "anchor": {
+        "correlationId": "user_msg_1795555860087_hsi6ay0a8",
+        "ts": 1795555860087
+      },
+      "at": "2026-11-24T21:45:41.032Z",
+      "author": "agent",
+      "createdAt": "2026-11-24T21:45:41.056Z",
+      "detail": "Eliminated dlopen/dlsym private cmark lookups in MarkdownParser.swift (0 flagged strings across 141 Release objects), released swift-markdown-ui 2.6.1, and updated ripul-ios-sdk to from: \"2.6.1\".",
+      "id": "ms_mwv84gbs_syrm",
+      "kind": "delivered",
+      "title": "Fixed App Store dlsym rejection in 2.6.1 and updated Ripul SDK",
+      "updatedAt": "2026-11-24T21:45:41.056Z"
     }
   ],
   "modelHistory": [],
@@ -75,9 +95,9 @@
       "id": "sc_mwukcx5a_9xzn",
       "key": true,
       "kind": "url",
-      "title": "ripulio/swift-markdown-ui (2.6.0)",
-      "updatedAt": "2026-11-24T12:30:00.489Z",
-      "url": "https://github.com/ripulio/swift-markdown-ui/releases/tag/2.6.0"
+      "title": "ripulio/swift-markdown-ui (2.6.1)",
+      "updatedAt": "2026-11-24T21:37:15.044Z",
+      "url": "https://github.com/ripulio/swift-markdown-ui/releases/tag/2.6.1"
     },
     {
       "author": "agent",
@@ -91,5 +111,5 @@
     }
   ],
   "tags": [],
-  "updatedAt": "2026-11-24T21:37:03.944Z"
+  "updatedAt": "2026-11-24T21:45:43.657Z"
 }
