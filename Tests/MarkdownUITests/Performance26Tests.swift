@@ -728,6 +728,32 @@
       } else {
         XCTFail("Expected table, got \(content.blocks[8])")
       }
+
+      // Verify DSL/AST -> cmark rendering via bootstrapped public-API ExtensionNodeTypes (no dlsym).
+      let dslContent = MarkdownContent {
+        Paragraph {
+          "Before "
+          Strikethrough("removed")
+          " after"
+        }
+        TextTable([("One", "Two")]) {
+          TextTableColumn(title: "Col A", value: \.0)
+          TextTableColumn(title: "Col B", value: \.1)
+        }
+      }
+      let renderedMarkdown = dslContent.renderMarkdown()
+      XCTAssertTrue(
+        renderedMarkdown.contains("~~removed~~"),
+        "Expected strikethrough Markdown, got: \(renderedMarkdown)"
+      )
+      XCTAssertTrue(
+        renderedMarkdown.contains("|Col A|Col B|"),
+        "Expected table header Markdown, got: \(renderedMarkdown)"
+      )
+      XCTAssertTrue(
+        renderedMarkdown.contains("|One|Two|"),
+        "Expected table body Markdown, got: \(renderedMarkdown)"
+      )
     }
 
     // MARK: - Helpers

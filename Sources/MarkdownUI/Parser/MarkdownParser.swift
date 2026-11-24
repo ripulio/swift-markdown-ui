@@ -193,16 +193,16 @@ extension UnsafeNode {
     case CMARK_NODE_NONE: return .none
     default:
       let ext = ExtensionNodeTypes.shared
-      if raw == ext.CMARK_NODE_TABLE {
+      if raw.rawValue == ext.table {
         return .table
       }
-      if raw == ext.CMARK_NODE_TABLE_ROW {
+      if raw.rawValue == ext.tableRow {
         return cmark_gfm_extensions_get_table_row_is_header(self) != 0 ? .tableHead : .tableRow
       }
-      if raw == ext.CMARK_NODE_TABLE_CELL {
+      if raw.rawValue == ext.tableCell {
         return .tableCell
       }
-      if raw == ext.CMARK_NODE_STRIKETHROUGH {
+      if raw.rawValue == ext.strikethrough {
         return .strikethrough
       }
       let typeString = String(cString: cmark_node_get_type_string(self))
@@ -351,7 +351,8 @@ extension UnsafeNode {
       return node
     case .table(let columnAlignments, let rows):
       guard let table = cmark_find_syntax_extension("table"),
-        let node = cmark_node_new_with_ext(ExtensionNodeTypes.shared.CMARK_NODE_TABLE, table)
+        let node = cmark_node_new_with_ext(
+          cmark_node_type(rawValue: ExtensionNodeTypes.shared.table), table)
       else {
         return nil
       }
@@ -388,7 +389,8 @@ extension UnsafeNode {
 
   fileprivate static func make(_ tableRow: RawTableRow) -> UnsafeNode? {
     guard let table = cmark_find_syntax_extension("table"),
-      let node = cmark_node_new_with_ext(ExtensionNodeTypes.shared.CMARK_NODE_TABLE_ROW, table)
+      let node = cmark_node_new_with_ext(
+        cmark_node_type(rawValue: ExtensionNodeTypes.shared.tableRow), table)
     else {
       return nil
     }
@@ -398,7 +400,8 @@ extension UnsafeNode {
 
   fileprivate static func make(_ tableCell: RawTableCell) -> UnsafeNode? {
     guard let table = cmark_find_syntax_extension("table"),
-      let node = cmark_node_new_with_ext(ExtensionNodeTypes.shared.CMARK_NODE_TABLE_CELL, table)
+      let node = cmark_node_new_with_ext(
+        cmark_node_type(rawValue: ExtensionNodeTypes.shared.tableCell), table)
     else {
       return nil
     }
@@ -435,7 +438,7 @@ extension UnsafeNode {
     case .strikethrough(let children):
       guard let strikethrough = cmark_find_syntax_extension("strikethrough"),
         let node = cmark_node_new_with_ext(
-          ExtensionNodeTypes.shared.CMARK_NODE_STRIKETHROUGH, strikethrough)
+          cmark_node_type(rawValue: ExtensionNodeTypes.shared.strikethrough), strikethrough)
       else {
         return nil
       }
@@ -516,8 +519,6 @@ private struct UnsafeNodeSequence: Sequence {
   }
 }
 
-// Extension node types are not exported in `cmark_gfm_extensions`,
-// so we need to look for them in the symbol table
 private final class CachedSyntaxExtensions: @unchecked Sendable {
   let extensions: [UnsafeMutablePointer<cmark_syntax_extension>]
 
@@ -535,31 +536,79 @@ private final class CachedSyntaxExtensions: @unchecked Sendable {
   }
 }
 
+// Extension node type IDs are assigned at runtime by cmark-gfm extensions and are
+// not exported in the C headers. Rather than resolving private C symbols via
+// dlopen/dlsym (which triggers automated App Store non-public API rejections),
+// parse a minimal fixture once via public cmark APIs and record the runtime type
+// IDs for tables and strikethrough.
 private struct ExtensionNodeTypes {
-  let CMARK_NODE_TABLE: cmark_node_type
-  let CMARK_NODE_TABLE_ROW: cmark_node_type
-  let CMARK_NODE_TABLE_CELL: cmark_node_type
-  let CMARK_NODE_STRIKETHROUGH: cmark_node_type
+  let table: UInt32
+  let tableRow: UInt32
+  let tableCell: UInt32
+  let strikethrough: UInt32
 
   static let shared = ExtensionNodeTypes()
 
   private init() {
-    func findNodeType(_ name: String, in handle: UnsafeMutableRawPointer!) -> cmark_node_type? {
-      guard let symbol = dlsym(handle, name) else {
-        return nil
-      }
-      return symbol.assumingMemoryBound(to: cmark_node_type.self).pointee
+    let resolved = Self.resolveFromFixtureParse()
+    self.table = resolved.table
+    self.tableRow = resolved.tableRow
+    self.tableCell = resolved.tableCell
+    self.strikethrough = resolved.strikethrough
+  }
+
+  private static func resolveFromFixtureParse() -> (
+    table: UInt32, tableRow: UInt32, tableCell: UInt32, strikethrough: UInt32
+  ) {
+    cmark_gfm_core_extensions_ensure_registered()
+
+    let none = CMARK_NODE_NONE.rawValue
+    var table = none
+    var tableRow = none
+    var tableCell = none
+    var strikethrough = none
+
+    let fixture = "~~x~~\n\n| a |\n| - |\n| b |\n"
+    guard let parser = cmark_parser_new(CMARK_OPT_DEFAULT) else {
+      return (table, tableRow, tableCell, strikethrough)
+    }
+    defer { cmark_parser_free(parser) }
+
+    for name in ["strikethrough", "table"] {
+      guard let syntaxExtension = cmark_find_syntax_extension(name) else { continue }
+      cmark_parser_attach_syntax_extension(parser, syntaxExtension)
     }
 
-    let handle = dlopen(nil, RTLD_LAZY)
+    cmark_parser_feed(parser, fixture, fixture.utf8.count)
+    guard let document = cmark_parser_finish(parser) else {
+      return (table, tableRow, tableCell, strikethrough)
+    }
+    defer { cmark_node_free(document) }
 
-    self.CMARK_NODE_TABLE = findNodeType("CMARK_NODE_TABLE", in: handle) ?? CMARK_NODE_NONE
-    self.CMARK_NODE_TABLE_ROW = findNodeType("CMARK_NODE_TABLE_ROW", in: handle) ?? CMARK_NODE_NONE
-    self.CMARK_NODE_TABLE_CELL =
-      findNodeType("CMARK_NODE_TABLE_CELL", in: handle) ?? CMARK_NODE_NONE
-    self.CMARK_NODE_STRIKETHROUGH =
-      findNodeType("CMARK_NODE_STRIKETHROUGH", in: handle) ?? CMARK_NODE_NONE
+    guard let iterator = cmark_iter_new(document) else {
+      return (table, tableRow, tableCell, strikethrough)
+    }
+    defer { cmark_iter_free(iterator) }
 
-    dlclose(handle)
+    var event = cmark_iter_next(iterator)
+    while event != CMARK_EVENT_DONE {
+      if event == CMARK_EVENT_ENTER,
+        let node = cmark_iter_get_node(iterator),
+        let typeName = cmark_node_get_type_string(node)
+      {
+        if strcmp(typeName, "table") == 0 {
+          table = cmark_node_get_type(node).rawValue
+        } else if strcmp(typeName, "table_header") == 0 || strcmp(typeName, "table_row") == 0 {
+          tableRow = cmark_node_get_type(node).rawValue
+        } else if strcmp(typeName, "table_cell") == 0 {
+          tableCell = cmark_node_get_type(node).rawValue
+        } else if strcmp(typeName, "strikethrough") == 0 {
+          strikethrough = cmark_node_get_type(node).rawValue
+        }
+      }
+      event = cmark_iter_next(iterator)
+    }
+
+    return (table, tableRow, tableCell, strikethrough)
   }
 }

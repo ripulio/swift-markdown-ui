@@ -26,7 +26,7 @@ Keep `import MarkdownUI`, keep your **iOS 15+ / macOS 12+** deployment target, a
 - **Direct `SwiftUI.Text` inline runs (now including `Theme.gitHub` + strikethrough/underline):** Plain, **bold**, *italic*, ~~strikethrough~~, and underlined spans render via direct `Text(verbatim:)` segments with pre-resolved `Font` caches, fixing upstream newline hangs ([#312](https://github.com/gonzalezreal/swift-markdown-ui/issues/312)) and dropped spaces after links/bold spans ([#402](https://github.com/gonzalezreal/swift-markdown-ui/issues/402)).
 - **Built-in `.markdownTheme(.chat)` preset:** Tuned out of the box for AI assistants and messaging apps—proportioned headings, rounded callout quotes, language-header code cards, compact single-pass lists, and viewport-aware horizontal-scrolling GFM tables.
 - **Zero-config speedup on `.basic`, `.gitHub`, and `.docC`:** All built-in themes automatically run on single-pass list, table, and prose layouts with **100% pixel and height parity** against upstream `2.4.1`, falling back automatically if you attach a custom `.markdownBlockStyle(...)` closure.
-- **Swift 6 & iOS polish:** `MarkdownContent` and `Theme` conform to `Sendable` for clean background-actor parsing (incorporating upstream `#351`), integer-enum `cmark-gfm` parsing runs ~23% faster, and iOS lists automatically avoid SwiftUI's `±16 pt` `.textSelection` link occlusion.
+- **App Store safe (`2.6.1`) & Swift 6 ready:** Eliminates upstream `2.4.1`'s `dlopen`/`dlsym` lookup of private `cmark` symbols that triggers automated App Store non-public API rejections ([#448](https://github.com/gonzalezreal/swift-markdown-ui/pull/448)), conforms `MarkdownContent` and `Theme` to `Sendable` ([#351](https://github.com/gonzalezreal/swift-markdown-ui/pull/351)), parses ~23% faster via integer-enum dispatch, and avoids iOS `.textSelection` link occlusion.
 
 ---
 
@@ -81,7 +81,8 @@ Measured on Apple Silicon macOS (Release build, attached `NSHostingView` at `400
 | :--- | :--- | :--- |
 | **Maintenance status** | Maintenance mode (new work in Textual) | **Actively maintained & used in production** |
 | **Platform floor** | iOS 15+ / macOS 12+ | **iOS 15+ / macOS 12+** *(drop-in compatible)* |
-| **Public API (`import MarkdownUI`)** | Original 2.x API | **100% source-compatible** (`from: "2.6.0"`) |
+| **Public API (`import MarkdownUI`)** | Original 2.x API | **100% source-compatible** (`from: "2.6.1"`) |
+| **App Store binary scan (`#448`)** | `dlopen`/`dlsym` private `cmark` literals flagged & blocked | **Public-API bootstrap (`0` flagged strings or `dlsym`)** |
 | **Block margin layout** | 2-pass `PreferenceKey` + `@State` *(causes `List` jumps)* | **Single-pass tree-resolved margins (`0.0 pt` jump)** |
 | **LLM token streaming** | Keyed by full block value; resets child state | **Positional identity + `O(1)` per-block memoization** |
 | **Lists (bullet, nested, numbered, task)** | Per-item `Label` + width `PreferenceKey` | **Single-pass `BulletedListLayout` & `NumberedListLayout`** |
@@ -102,7 +103,7 @@ Swap the package URL (or add `swift-markdown-ui` fresh) in your `Package.swift`:
 
 ```swift
 dependencies: [
-  .package(url: "https://github.com/ripulio/swift-markdown-ui", from: "2.6.0")
+  .package(url: "https://github.com/ripulio/swift-markdown-ui", from: "2.6.1")
 ]
 ```
 
@@ -121,7 +122,7 @@ Link `"MarkdownUI"` to your target—**no source changes required**:
 
 1. Open **File → Add Package Dependencies…**
 2. Paste `https://github.com/ripulio/swift-markdown-ui`
-3. Select **Up to Next Major Version** from **`2.6.0`** and add **MarkdownUI** to your target.
+3. Select **Up to Next Major Version** from **`2.6.1`** and add **MarkdownUI** to your target.
 
 ### Minimum Platform Requirements
 

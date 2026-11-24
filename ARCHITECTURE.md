@@ -61,8 +61,8 @@ All passes activate automatically whenever the active `Theme` uses declarative o
   - Top-level block views (`DirectProseBlockView`, `EquatableBulletedListBlockView`, `EquatableNestedBulletedListBlockView`, `EquatableNumberedListBlockView`, `EquatableTaskListBlockView`, `CodeBlockView`, `TableView`) conform to `Equatable` so unchanged completed blocks skip SwiftUI body evaluation during token streaming.
   - `StaticViewBatch` uses prefix-stable 8-slot buckets (`prefix8` for 0–31, `ForEach` of `prefix8` beyond 32) instead of binary bitmask groups so growing block counts never change earlier items' structural SwiftUI identity or reset stateful views.
   - `BlockSpacedStackLayout` and `ParagraphStackLayout` retain per-index measured sizes across `updateCache` for **stateless** blocks whose `BlockNode` and `DirectStyleFingerprint` (including `dynamicTypeSize`, `legibilityWeight`, and `lineLimit`) are unchanged, while always re-measuring stateful blocks (`.codeBlock`, `.table`, `.other`).
-- **Integer-enum `MarkdownParser`:**
-  - Dispatches directly on `cmark_node_get_type` integers and caches GFM syntax extension handles once in `CachedSyntaxExtensions`, avoiding per-node C-string allocations during parsing.
+- **Integer-enum `MarkdownParser` & App Store–safe bootstrap (`2.6.1`):**
+  - Dispatches directly on `cmark_node_get_type` integers, caches GFM syntax extension handles once in `CachedSyntaxExtensions`, and resolves runtime table/strikethrough extension node types once via a public-API fixture parse instead of `dlopen`/`dlsym` (eliminating automated App Store non-public API rejections from upstream `#448`).
 
 ---
 

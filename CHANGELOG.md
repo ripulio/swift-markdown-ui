@@ -4,6 +4,11 @@ All notable changes to `ripulio/swift-markdown-ui` are documented in this file.
 
 This fork tracks Semantic Versioning from upstream [`gonzalezreal/swift-markdown-ui` `2.4.1`](https://github.com/gonzalezreal/swift-markdown-ui/releases/tag/2.4.1) (`5f61335`).
 
+## [2.6.1] — 2026-11-24
+
+### Fixed
+- **App Store automated non-public API rejection (upstream [`#448`](https://github.com/gonzalezreal/swift-markdown-ui/pull/448)):** Replaced `dlopen`/`dlsym` symbol lookups of private `cmark-gfm` extension globals in `MarkdownParser.swift` (`ExtensionNodeTypes`) with a one-time public-API fixture parse using `cmark_parser_*` + `cmark_node_get_type()`, and renamed the stored `UInt32` fields to lowercase (`table`, `tableRow`, `tableCell`, `strikethrough`). Eliminates all four flagged strings (`CMARK_NODE_TABLE`, `CMARK_NODE_TABLE_ROW`, `CMARK_NODE_TABLE_CELL`, `CMARK_NODE_STRIKETHROUGH`), removes `dlopen`/`dlsym` linkage completely (verified across all Release object files), and clears the remaining `cmark_node_type` `@_implementationOnly` compiler warnings.
+
 ## [2.6.0] — 2026-11-24
 
 ### Performance (Pass 8 — Single-Pass Lists, Automatic Tables, `Theme.gitHub` Direct Text & `O(1)` Streaming)
